@@ -1,9 +1,9 @@
-# GraphQL Boilerplate
+# Spectrum (scRNA)
 
-This project acts a boilerplate for the GraphQL layer of visualizations.
+This project contains the web-based **single-cell RNA (scRNA)** visualization dashboard for Spectrum.
 
-[React layer](https://github.com/shahcompbio/viz-react-boilerplate)
-[GraphQL layer](https://github.com/shahcompbio/viz-graphql-boilerplate)
+- [Database](https://github.com/shahcompbio/spectrum-scrna-db)
+- [**GraphQL**](https://github.com/shahcompbio/spectrum-scrna-graphql)
 
 ## Features
 
