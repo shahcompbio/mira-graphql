@@ -4,6 +4,7 @@ This project contains the web-based **single-cell RNA (scRNA)** visualization da
 
 - [Database](https://github.com/shahcompbio/spectrum-scrna-db)
 - [**GraphQL**](https://github.com/shahcompbio/spectrum-scrna-graphql)
+- [React](https://github.com/shahcompbio/spectrum-scrna-react)
 
 ## Features
 
@@ -36,6 +37,6 @@ Runs all tests.
 This project can be built for production and packaged with Docker. To do this:
 
 ```
-docker build . -t graphql-boilerplate
-docker run -d -p 4000:4000 --name graphql graphql-boilerplate
+docker build . -t spectrum-scrna-graphql
+docker run -d -p 4000:4000 --name graphql spectrum-scrna-graphql
 ```
