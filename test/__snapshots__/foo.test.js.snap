@@ -1,0 +1,27 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`test foo query 1`] = `
+Object {
+  "data": Object {
+    "foo": Array [
+      Object {
+        "age": 5,
+        "id": "foo1",
+        "name": "Sam",
+      },
+      Object {
+        "age": 100,
+        "id": "abc",
+        "name": "ABC",
+      },
+    ],
+  },
+  "errors": undefined,
+  "extensions": undefined,
+  "http": Object {
+    "headers": Headers {
+      Symbol(map): Object {},
+    },
+  },
+}
+`;
