@@ -3,7 +3,8 @@ import "@babel/polyfill";
 import { ApolloServer } from "apollo-server-express";
 import { gql } from "apollo-server";
 
-import * as cells from "./cells.js";
+import * as cells from "./cells";
+import * as samples from "./samples";
 
 import { merge } from "lodash";
 
@@ -14,8 +15,8 @@ const baseSchema = gql`
 `;
 
 const server = new ApolloServer({
-  typeDefs: [baseSchema, cells.schema],
-  resolvers: merge(cells.resolvers)
+  typeDefs: [baseSchema, cells.schema, samples.schema],
+  resolvers: merge(cells.resolvers, samples.resolvers)
 });
 
 const express = require("express");
