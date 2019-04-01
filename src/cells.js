@@ -5,10 +5,10 @@ import client from "./api/elasticsearch.js";
 
 export const schema = gql`
   extend type Query {
-    getRedDim(sampleID: String!): [Cell!]!
-    getRedDimRanges(sampleID: String!): Axis!
-    getClusters(sampleID: String!): [Int!]!
-    getCelltypes(sampleID: String!): [String!]!
+    cells(sampleID: String!): [Cell!]!
+    dimensionRanges(sampleID: String!): Axis!
+    clusters(sampleID: String!): [Int!]!
+    celltypes(sampleID: String!): [String!]!
   }
 
   type Cell {
@@ -27,7 +27,7 @@ export const schema = gql`
 
 export const resolvers = {
   Query: {
-    async getRedDim(_, { sampleID }) {
+    async cells(_, { sampleID }) {
       const query = bodybuilder()
         .size(50000)
         .filter("term", "sample_id", sampleID)
@@ -40,7 +40,7 @@ export const resolvers = {
       return results.hits.hits.map(hit => hit["_source"]);
     },
 
-    async getRedDimRanges(_, { sampleID }) {
+    async dimensionRanges(_, { sampleID }) {
       const query = bodybuilder()
         .size(0)
         .filter("term", "sample_id", sampleID)
@@ -58,7 +58,7 @@ export const resolvers = {
       return results["aggregations"];
     },
 
-    async getClusters(_, { sampleID }) {
+    async clusters(_, { sampleID }) {
       const query = bodybuilder()
         .size(0)
         .filter("term", "sample_id", sampleID)
@@ -75,7 +75,7 @@ export const resolvers = {
       );
     },
 
-    async getCelltypes(_, { sampleID }) {
+    async celltypes(_, { sampleID }) {
       const query = bodybuilder()
         .size(0)
         .filter("term", "sample_id", sampleID)

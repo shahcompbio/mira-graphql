@@ -5,13 +5,13 @@ import client from "./api/elasticsearch.js";
 
 export const schema = gql`
   extend type Query {
-    getAllSamples: [String!]!
+    samples: [String!]!
   }
 `;
 
 export const resolvers = {
   Query: {
-    async getAllSamples() {
+    async samples() {
       const query = bodybuilder()
         .size(50000)
         .aggregation("terms", "sample_id")
