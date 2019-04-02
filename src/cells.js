@@ -25,7 +25,7 @@ export const schema = gql`
   }
 
   type Cluster {
-    id: String!
+    cluster: String!
     count: Int!
   }
 
@@ -113,7 +113,7 @@ export const resolvers = {
   },
 
   Cluster: {
-    id: root => root.key.toString(),
+    cluster: root => root.key.toString(),
     count: root => root.doc_count
   },
 
