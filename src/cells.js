@@ -7,21 +7,31 @@ export const schema = gql`
   extend type Query {
     cells(sampleID: String!): [Cell!]!
     dimensionRanges(sampleID: String!): Axis!
-    clusters(sampleID: String!): [Int!]!
-    celltypes(sampleID: String!): [String!]!
+    clusters(sampleID: String!): [Cluster!]!
+    celltypes(sampleID: String!): [Celltype!]!
   }
 
   type Cell {
     id: String!
     x: Float!
     y: Float!
-    cluster: Int!
+    cluster: String!
     celltype: String!
   }
 
   type Axis {
     x: [Float!]!
     y: [Float!]!
+  }
+
+  type Cluster {
+    id: String!
+    count: Int!
+  }
+
+  type Celltype {
+    id: String!
+    count: Int!
   }
 `;
 
@@ -70,9 +80,7 @@ export const resolvers = {
         body: query
       });
 
-      return results["aggregations"]["agg_terms_cluster"]["buckets"].map(
-        bucket => bucket.key
-      );
+      return results["aggregations"]["agg_terms_cluster"]["buckets"];
     },
 
     async celltypes(_, { sampleID }) {
@@ -87,9 +95,7 @@ export const resolvers = {
         body: query
       });
 
-      return results["aggregations"]["agg_terms_cell_type"]["buckets"].map(
-        bucket => bucket.key
-      );
+      return results["aggregations"]["agg_terms_cell_type"]["buckets"];
     }
   },
 
@@ -97,12 +103,22 @@ export const resolvers = {
     id: root => root["cell_id"],
     x: root => root["x"],
     y: root => root["y"],
-    cluster: root => root["cluster"],
+    cluster: root => root["cluster"].toString(),
     celltype: root => root["cell_type"]
   },
 
   Axis: {
     x: root => [root["agg_min_x"]["value"], root["agg_max_x"]["value"]],
     y: root => [root["agg_min_y"]["value"], root["agg_max_y"]["value"]]
+  },
+
+  Cluster: {
+    id: root => root.key.toString(),
+    count: root => root.doc_count
+  },
+
+  Celltype: {
+    id: root => root.key,
+    count: root => root.doc_count
   }
 };
