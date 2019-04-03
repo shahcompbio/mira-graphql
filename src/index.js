@@ -5,6 +5,7 @@ import { gql } from "apollo-server";
 
 import * as cells from "./cells";
 import * as samples from "./samples";
+import * as colorLabels from "./colorLabels";
 
 import { merge } from "lodash";
 
@@ -15,8 +16,8 @@ const baseSchema = gql`
 `;
 
 const server = new ApolloServer({
-  typeDefs: [baseSchema, cells.schema, samples.schema],
-  resolvers: merge(cells.resolvers, samples.resolvers)
+  typeDefs: [baseSchema, cells.schema, samples.schema, colorLabels.schema],
+  resolvers: merge(cells.resolvers, samples.resolvers, colorLabels.resolvers)
 });
 
 const express = require("express");
