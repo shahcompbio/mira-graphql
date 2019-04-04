@@ -14,7 +14,8 @@ export const schema = gql`
     title: String!
   }
   type ColorLabelValue {
-    id: String!
+    id: ID!
+    name: String!
     count: Int!
   }
 `;
@@ -45,7 +46,9 @@ export const resolvers = {
         body: query
       });
 
-      return results["aggregations"][`agg_terms_${label}`]["buckets"];
+      return results["aggregations"][`agg_terms_${label}`]["buckets"].map(
+        bucket => ({ ...bucket, sampleID, label })
+      );
     }
   },
   ColorLabel: {
@@ -53,7 +56,8 @@ export const resolvers = {
     title: root => root.title
   },
   ColorLabelValue: {
-    id: root => root.key.toString(),
+    id: root => `${root.sampleID}_${root.label}_${root.key}`,
+    name: root => root.key.toString(),
     count: root => root.doc_count
   }
 };

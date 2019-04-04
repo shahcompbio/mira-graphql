@@ -14,7 +14,8 @@ export const schema = gql`
   scalar StringOrNum
 
   type Cell {
-    id: String!
+    id: ID!
+    name: String!
     x: Float!
     y: Float!
     label: StringOrNum!
@@ -92,7 +93,8 @@ export const resolvers = {
     }
   }),
   Cell: {
-    id: root => root["cell_id"],
+    id: root => `${root["sample_id"]}_${root["cell_id"]}`,
+    name: root => root["cell_id"],
     x: root => root["x"],
     y: root => root["y"],
     label: root => root["label"].toString()
