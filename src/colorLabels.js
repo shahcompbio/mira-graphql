@@ -23,6 +23,7 @@ export const schema = gql`
 export const resolvers = {
   Query: {
     colorLabels(_, { sampleID }) {
+      // TODO: Actually scrape some place to get these values
       return [
         {
           id: "cell_type",
