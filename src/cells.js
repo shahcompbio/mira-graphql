@@ -8,7 +8,6 @@ import client from "./api/elasticsearch.js";
 export const schema = gql`
   extend type Query {
     cells(sampleID: String!, label: String!): [Cell!]!
-    dimensionRanges(sampleID: String!): Axis!
   }
 
   scalar StringOrNum
@@ -19,11 +18,6 @@ export const schema = gql`
     x: Float!
     y: Float!
     label: StringOrNum!
-  }
-
-  type Axis {
-    x: [Float!]!
-    y: [Float!]!
   }
 `;
 
@@ -43,24 +37,6 @@ export const resolvers = {
         ...hit["_source"],
         label: hit["_source"][label]
       }));
-    },
-
-    async dimensionRanges(_, { sampleID }) {
-      const query = bodybuilder()
-        .size(0)
-        .filter("term", "sample_id", sampleID)
-        .aggregation("min", "x")
-        .aggregation("max", "x")
-        .aggregation("min", "y")
-        .aggregation("max", "y")
-        .build();
-
-      const results = await client.search({
-        index: "scrna_cells",
-        body: query
-      });
-
-      return results["aggregations"];
     }
   },
   StringOrNum: new GraphQLScalarType({
@@ -98,10 +74,5 @@ export const resolvers = {
     x: root => root["x"],
     y: root => root["y"],
     label: root => root["label"].toString()
-  },
-
-  Axis: {
-    x: root => [root["agg_min_x"]["value"], root["agg_max_x"]["value"]],
-    y: root => [root["agg_min_y"]["value"], root["agg_max_y"]["value"]]
   }
 };
