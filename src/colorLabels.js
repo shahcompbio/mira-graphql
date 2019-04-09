@@ -22,8 +22,22 @@ export const schema = gql`
 
 export const resolvers = {
   Query: {
-    colorLabels(_, { sampleID }) {
+    async colorLabels(_, { sampleID }) {
       // TODO: Actually scrape some place to get these values
+      const geneQuery = bodybuilder()
+        .size(0)
+        .filter("term", "sample_id", sampleID)
+        .aggregation("terms", "gene", { size: 1000, order: { _key: "asc" } })
+        .build();
+
+      const results = await client.search({
+        index: "scrna_genes",
+        body: geneQuery
+      });
+
+      const geneResults = results["aggregations"][`agg_terms_gene`][
+        "buckets"
+      ].map(bucket => ({ id: bucket["key"], title: bucket["key"] }));
       return [
         {
           id: "cell_type",
@@ -32,7 +46,8 @@ export const resolvers = {
         {
           id: "cluster",
           title: "Cluster"
-        }
+        },
+        ...geneResults
       ];
     },
     async colorLabelValues(_, { sampleID, label }) {
