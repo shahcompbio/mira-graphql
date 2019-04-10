@@ -33,6 +33,30 @@ export const resolvers = {
         index: "scrna_cells",
         body: query
       });
+
+      if (label !== "cell_type" && label !== "cluster") {
+        const geneQuery = bodybuilder()
+          .size(50000)
+          .filter("term", "sample_id", sampleID)
+          .filter("term", "gene", label)
+          .build();
+
+        const geneResults = await client.search({
+          index: "scrna_genes",
+          body: geneQuery
+        });
+
+        const geneRecords = geneResults.hits.hits.reduce((geneMap, hit) => ({
+          ...geneMap,
+          [hit["_source"]["cell_id"]]: hit["_source"]["count"]
+        }));
+        return results.hits.hits.map(hit => ({
+          ...hit["_source"],
+          label: geneRecords.hasOwnProperty(hit["_source"]["cell_id"])
+            ? geneRecords[hit["_source"]["cell_id"]]
+            : 0
+        }));
+      }
       return results.hits.hits.map(hit => ({
         ...hit["_source"],
         label: hit["_source"][label]

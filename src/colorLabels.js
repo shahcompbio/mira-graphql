@@ -51,6 +51,26 @@ export const resolvers = {
       ];
     },
     async colorLabelValues(_, { sampleID, label }) {
+      if (label !== "cell_type" && label !== "cluster") {
+        const query = bodybuilder()
+          .size(0)
+          .filter("term", "sample_id", sampleID)
+          .filter("term", "gene", label)
+          .aggregation("terms", "count", { order: { _key: "asc" } })
+          .build();
+
+        const results = await client.search({
+          index: "scrna_genes",
+          body: query
+        });
+
+        return [
+          { key: 0, doc_count: 100, sampleID, label },
+          ...results["aggregations"][`agg_terms_count`]["buckets"].map(
+            bucket => ({ ...bucket, sampleID, label })
+          )
+        ];
+      }
       const query = bodybuilder()
         .size(0)
         .filter("term", "sample_id", sampleID)
@@ -58,7 +78,10 @@ export const resolvers = {
         .build();
 
       const results = await client.search({
-        index: "scrna_cells",
+        index:
+          label === "cell_type" || label === "cluster"
+            ? "scrna_cells"
+            : "scrna_genes",
         body: query
       });
 
