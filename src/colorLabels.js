@@ -27,7 +27,7 @@ export const resolvers = {
       const geneQuery = bodybuilder()
         .size(0)
         .filter("term", "sample_id", sampleID)
-        .aggregation("terms", "gene", { size: 1000, order: { _key: "asc" } })
+        .aggregation("terms", "gene", { size: 50000, order: { _key: "asc" } })
         .build();
 
       const results = await client.search({
