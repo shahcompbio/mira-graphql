@@ -20,7 +20,7 @@ export const schema = gql`
   }
   type ColorLabelValue {
     id: ID!
-    name: String!
+    name: StringOrNum!
     count: Int!
   }
 `;
@@ -109,7 +109,7 @@ export const resolvers = {
   },
   ColorLabelValue: {
     id: root => `${root.sampleID}_${root.label}_${root.key}`,
-    name: root => root.key.toString(),
+    name: root => root.key,
     count: root => root.doc_count
   }
 };
