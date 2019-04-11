@@ -7,7 +7,7 @@ import client from "./api/elasticsearch.js";
 
 export const schema = gql`
   extend type Query {
-    cells(sampleID: String!, label: String!): [Cell!]!
+    cells(sampleID: String!, label: String!, labelType: String!): [Cell!]!
   }
 
   scalar StringOrNum
@@ -23,7 +23,7 @@ export const schema = gql`
 
 export const resolvers = {
   Query: {
-    async cells(_, { sampleID, label }) {
+    async cells(_, { sampleID, label, labelType }) {
       const query = bodybuilder()
         .size(50000)
         .filter("term", "sample_id", sampleID)
@@ -34,7 +34,7 @@ export const resolvers = {
         body: query
       });
 
-      if (label !== "cell_type" && label !== "cluster") {
+      if (labelType === "gene") {
         const geneQuery = bodybuilder()
           .size(50000)
           .filter("term", "sample_id", sampleID)
@@ -57,6 +57,7 @@ export const resolvers = {
             : 0
         }));
       }
+
       return results.hits.hits.map(hit => ({
         ...hit["_source"],
         label: hit["_source"][label]
