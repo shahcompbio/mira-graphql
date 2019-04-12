@@ -65,6 +65,6 @@ export const resolvers = {
     name: root => root["cell_id"],
     x: root => root["x"],
     y: root => root["y"],
-    label: root => root["label"].toString()
+    label: root => root["label"]
   }
 };
