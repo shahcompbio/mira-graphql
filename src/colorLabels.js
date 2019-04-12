@@ -3,7 +3,6 @@ import bodybuilder from "bodybuilder";
 
 import client from "./api/elasticsearch.js";
 
-const util = require("util");
 export const schema = gql`
   extend type Query {
     colorLabels(sampleID: String!): [ColorLabel!]!
