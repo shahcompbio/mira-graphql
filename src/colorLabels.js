@@ -74,11 +74,17 @@ export const resolvers = {
           body: query
         });
 
+        const geneBuckets =
+          results["aggregations"][`agg_terms_count`]["buckets"];
+        const totalNumCells = await getTotalNumCells(sampleID);
+        const numGeneCells = geneBuckets.reduce(
+          (sum, bucket) => sum + bucket.doc_count,
+          0
+        );
+
         return [
-          { key: 0, doc_count: 100, sampleID, label },
-          ...results["aggregations"][`agg_terms_count`]["buckets"].map(
-            bucket => ({ ...bucket, sampleID, label })
-          )
+          { key: 0, doc_count: totalNumCells - numGeneCells, sampleID, label },
+          ...geneBuckets.map(bucket => ({ ...bucket, sampleID, label }))
         ];
       } else {
         const query = bodybuilder()
@@ -112,3 +118,16 @@ export const resolvers = {
     count: root => root.doc_count
   }
 };
+
+async function getTotalNumCells(sampleID) {
+  const query = bodybuilder()
+    .filter("term", "sample_id", sampleID)
+    .aggregation("cardinality", "cell_id")
+    .build();
+  const results = await client.search({
+    index: "scrna_cells",
+    body: query
+  });
+
+  return results["aggregations"]["agg_cardinality_cell_id"]["value"];
+}
