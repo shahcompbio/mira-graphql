@@ -5,12 +5,17 @@ import client from "./api/elasticsearch.js";
 
 export const schema = gql`
   extend type Query {
-    colorLabels(sampleID: String!): [ColorLabel!]!
+    colorLabels(sampleID: String!): [ColorLabelGroup!]!
     colorLabelValues(
       sampleID: String!
       label: String!
       labelType: String!
     ): [ColorLabelValue!]!
+  }
+  type ColorLabelGroup {
+    id: String!
+    title: String!
+    labels: [ColorLabel!]!
   }
   type ColorLabel {
     id: String!
@@ -28,6 +33,23 @@ export const resolvers = {
   Query: {
     async colorLabels(_, { sampleID }) {
       // TODO: Actually scrape some place to get these values
+      const cellGroup = {
+        id: "categorical",
+        title: "Cell Properties",
+        labels: [
+          {
+            id: "cell_type",
+            title: "Cell Type",
+            type: "categorical"
+          },
+          {
+            id: "cluster",
+            title: "Cluster",
+            type: "categorical"
+          }
+        ]
+      };
+
       const geneQuery = bodybuilder()
         .size(0)
         .filter("term", "sample_id", sampleID)
@@ -46,19 +68,14 @@ export const resolvers = {
         title: bucket["key"],
         type: "gene"
       }));
-      return [
-        {
-          id: "cell_type",
-          title: "Cell Type",
-          type: "categorical"
-        },
-        {
-          id: "cluster",
-          title: "Cluster",
-          type: "categorical"
-        },
-        ...geneResults
-      ];
+
+      const geneGroup = {
+        id: "genes",
+        title: "Genes",
+        labels: geneResults
+      };
+
+      return [cellGroup, geneGroup];
     },
     async colorLabelValues(_, { sampleID, label, labelType }) {
       if (labelType === "gene") {
@@ -106,6 +123,11 @@ export const resolvers = {
         );
       }
     }
+  },
+  ColorLabelGroup: {
+    id: root => root.id,
+    title: root => root.title,
+    labels: root => root.labels
   },
   ColorLabel: {
     id: root => root.id,
