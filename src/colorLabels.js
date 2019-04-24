@@ -22,10 +22,22 @@ export const schema = gql`
     title: String!
     type: String!
   }
-  type ColorLabelValue {
+  interface ColorLabelValue {
     id: ID!
     name: StringOrNum!
     count: Int!
+  }
+  type Categorical implements ColorLabelValue {
+    id: ID!
+    name: StringOrNum!
+    count: Int!
+  }
+  type Gene implements ColorLabelValue {
+    id: ID!
+    name: StringOrNum!
+    count: Int!
+    min: Int!
+    max: Int!
   }
 `;
 
@@ -79,29 +91,60 @@ export const resolvers = {
     },
     async colorLabelValues(_, { sampleID, label, labelType }) {
       if (labelType === "gene") {
-        const query = bodybuilder()
+        const rangeQuery = bodybuilder()
           .size(0)
           .filter("term", "sample_id", sampleID)
           .filter("term", "gene", label)
-          .aggregation("terms", "count", { order: { _key: "asc" } })
+          .aggregation("max", "count")
           .build();
 
-        const results = await client.search({
+        const rangeResults = await client.search({
           index: "scrna_genes",
-          body: query
+          body: rangeQuery
+        });
+
+        const maxCount = rangeResults["aggregations"]["agg_max_count"]["value"];
+
+        const histoInterval = getHistogramInterval(maxCount);
+
+        const histoquery = bodybuilder()
+          .size(0)
+          .filter("term", "sample_id", sampleID)
+          .filter("term", "gene", label)
+          .aggregation("histogram", "count", { interval: histoInterval })
+          .build();
+
+        const histoResults = await client.search({
+          index: "scrna_genes",
+          body: histoquery
         });
 
         const geneBuckets =
-          results["aggregations"][`agg_terms_count`]["buckets"];
+          histoResults["aggregations"]["agg_histogram_count"]["buckets"];
         const totalNumCells = await getTotalNumCells(sampleID);
         const numGeneCells = geneBuckets.reduce(
           (sum, bucket) => sum + bucket.doc_count,
           0
         );
+        const numZeroCountCells = totalNumCells - numGeneCells;
+
+        const [firstBucket, ...restBucket] = geneBuckets;
 
         return [
-          { key: 0, doc_count: totalNumCells - numGeneCells, sampleID, label },
-          ...geneBuckets.map(bucket => ({ ...bucket, sampleID, label }))
+          {
+            min: 0,
+            max: histoInterval - 1,
+            sampleID,
+            label,
+            doc_count: firstBucket.doc_count + numZeroCountCells
+          },
+          ...restBucket.map(bucket => ({
+            ...bucket,
+            sampleID,
+            label,
+            min: bucket.key,
+            max: bucket.key + histoInterval - 1
+          }))
         ];
       } else {
         const query = bodybuilder()
@@ -135,9 +178,25 @@ export const resolvers = {
     type: root => root.type
   },
   ColorLabelValue: {
+    __resolveType(obj, context, info) {
+      if (obj.hasOwnProperty("min")) {
+        return "Gene";
+      } else {
+        return "Categorical";
+      }
+    }
+  },
+  Categorical: {
     id: root => `${root.sampleID}_${root.label}_${root.key}`,
     name: root => root.key,
     count: root => root.doc_count
+  },
+  Gene: {
+    id: root => `${root.sampleID}_${root.label}_${root.min}`,
+    name: root => root.min,
+    count: root => root.doc_count,
+    min: root => root.min,
+    max: root => root.max
   }
 };
 
@@ -153,3 +212,16 @@ async function getTotalNumCells(sampleID) {
 
   return results["aggregations"]["agg_cardinality_cell_id"]["value"];
 }
+
+const getHistogramInterval = max => {
+  const histogramIntervalAcc = i => {
+    const intervalValue = i === 0 ? 1 : i * 5;
+    if (max / intervalValue < 10) {
+      return intervalValue;
+    } else {
+      return histogramIntervalAcc(i + 1);
+    }
+  };
+
+  return histogramIntervalAcc(0);
+};
