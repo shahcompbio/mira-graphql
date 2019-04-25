@@ -193,7 +193,7 @@ export const resolvers = {
   },
   Gene: {
     id: root => `${root.sampleID}_${root.label}_${root.min}`,
-    name: root => root.min,
+    name: root => `${root.min} - ${root.max}`,
     count: root => root.doc_count,
     min: root => root.min,
     max: root => root.max
