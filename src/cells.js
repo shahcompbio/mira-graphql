@@ -44,7 +44,7 @@ export const resolvers = {
 
         const geneRecords = geneResults.hits.hits.reduce((geneMap, hit) => ({
           ...geneMap,
-          [hit["_source"]["cell_id"]]: hit["_source"]["count"]
+          [hit["_source"]["cell_id"]]: hit["_source"]["log_count"]
         }));
         return results.hits.hits.map(hit => ({
           ...hit["_source"],

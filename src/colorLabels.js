@@ -95,7 +95,7 @@ export const resolvers = {
           .size(0)
           .filter("term", "sample_id", sampleID)
           .filter("term", "gene", label)
-          .aggregation("max", "count")
+          .aggregation("max", "log_count")
           .build();
 
         const rangeResults = await client.search({
@@ -103,7 +103,8 @@ export const resolvers = {
           body: rangeQuery
         });
 
-        const maxCount = rangeResults["aggregations"]["agg_max_count"]["value"];
+        const maxCount =
+          rangeResults["aggregations"]["agg_max_log_count"]["value"];
 
         const histoInterval = getHistogramInterval(maxCount);
 
@@ -111,7 +112,7 @@ export const resolvers = {
           .size(0)
           .filter("term", "sample_id", sampleID)
           .filter("term", "gene", label)
-          .aggregation("histogram", "count", { interval: histoInterval })
+          .aggregation("histogram", "log_count", { interval: histoInterval })
           .build();
 
         const histoResults = await client.search({
@@ -120,7 +121,7 @@ export const resolvers = {
         });
 
         const geneBuckets =
-          histoResults["aggregations"]["agg_histogram_count"]["buckets"];
+          histoResults["aggregations"]["agg_histogram_log_count"]["buckets"];
         const totalNumCells = await getTotalNumCells(sampleID);
         const numGeneCells = geneBuckets.reduce(
           (sum, bucket) => sum + bucket.doc_count,
@@ -216,7 +217,7 @@ async function getTotalNumCells(sampleID) {
 const getHistogramInterval = max => {
   const histogramIntervalAcc = i => {
     const intervalValue = i === 0 ? 1 : i * 5;
-    if (max / intervalValue < 10) {
+    if (max / intervalValue < 15) {
       return intervalValue;
     } else {
       return histogramIntervalAcc(i + 1);
