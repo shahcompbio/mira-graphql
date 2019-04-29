@@ -106,13 +106,11 @@ export const resolvers = {
         const maxCount =
           rangeResults["aggregations"]["agg_max_log_count"]["value"];
 
-        const histoInterval = getHistogramInterval(maxCount);
-
         const histoquery = bodybuilder()
           .size(0)
           .filter("term", "sample_id", sampleID)
           .filter("term", "gene", label)
-          .aggregation("histogram", "log_count", { interval: histoInterval })
+          .aggregation("histogram", "log_count", { interval: 1 })
           .build();
 
         const histoResults = await client.search({
@@ -134,7 +132,7 @@ export const resolvers = {
         return [
           {
             min: 0,
-            max: histoInterval - 1,
+            max: 1,
             sampleID,
             label,
             doc_count: firstBucket.doc_count + numZeroCountCells
@@ -143,8 +141,8 @@ export const resolvers = {
             ...bucket,
             sampleID,
             label,
-            min: bucket.key,
-            max: bucket.key + histoInterval - 1
+            min: bucket.key - 1,
+            max: bucket.key
           }))
         ];
       } else {
@@ -213,16 +211,3 @@ async function getTotalNumCells(sampleID) {
 
   return results["aggregations"]["agg_cardinality_cell_id"]["value"];
 }
-
-const getHistogramInterval = max => {
-  const histogramIntervalAcc = i => {
-    const intervalValue = i === 0 ? 1 : i * 5;
-    if (max / intervalValue < 15) {
-      return intervalValue;
-    } else {
-      return histogramIntervalAcc(i + 1);
-    }
-  };
-
-  return histogramIntervalAcc(0);
-};
