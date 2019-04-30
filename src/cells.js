@@ -5,7 +5,12 @@ import client from "./api/elasticsearch.js";
 
 export const schema = gql`
   extend type Query {
-    cells(sampleID: String!, label: String!, labelType: String!): [Cell!]!
+    cells(
+      patientID: String!
+      sampleID: String!
+      label: String!
+      labelType: String!
+    ): [Cell!]!
   }
 
   type Cell {
@@ -19,14 +24,14 @@ export const schema = gql`
 
 export const resolvers = {
   Query: {
-    async cells(_, { sampleID, label, labelType }) {
+    async cells(_, { patientID, sampleID, label, labelType }) {
       const query = bodybuilder()
         .size(50000)
         .filter("term", "sample_id", sampleID)
         .build();
 
       const results = await client.search({
-        index: "scrna_cells",
+        index: `${patientID.toLowerCase()}_cells`,
         body: query
       });
 
@@ -38,14 +43,15 @@ export const resolvers = {
           .build();
 
         const geneResults = await client.search({
-          index: "scrna_genes",
+          index: `${patientID.toLowerCase()}_genes`,
           body: geneQuery
         });
 
         const geneRecords = geneResults.hits.hits.reduce((geneMap, hit) => ({
           ...geneMap,
-          [hit["_source"]["cell_id"]]: hit["_source"]["log_count"]
+          [hit["_source"]["cell_id"]]: hit["_source"]["count"]
         }));
+
         return results.hits.hits.map(hit => ({
           ...hit["_source"],
           label: geneRecords.hasOwnProperty(hit["_source"]["cell_id"])

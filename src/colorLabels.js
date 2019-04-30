@@ -5,8 +5,9 @@ import client from "./api/elasticsearch.js";
 
 export const schema = gql`
   extend type Query {
-    colorLabels(sampleID: String!): [ColorLabelGroup!]!
+    colorLabels(patientID: String!, sampleID: String!): [ColorLabelGroup!]!
     colorLabelValues(
+      patientID: String!
       sampleID: String!
       label: String!
       labelType: String!
@@ -43,7 +44,7 @@ export const schema = gql`
 
 export const resolvers = {
   Query: {
-    async colorLabels(_, { sampleID }) {
+    async colorLabels(_, { patientID, sampleID }) {
       // TODO: Actually scrape some place to get these values
       const cellGroup = {
         id: "categorical",
@@ -69,7 +70,7 @@ export const resolvers = {
         .build();
 
       const results = await client.search({
-        index: "scrna_genes",
+        index: `${patientID.toLowerCase()}_genes`,
         body: geneQuery
       });
 
@@ -89,7 +90,7 @@ export const resolvers = {
 
       return [cellGroup, geneGroup];
     },
-    async colorLabelValues(_, { sampleID, label, labelType }) {
+    async colorLabelValues(_, { patientID, sampleID, label, labelType }) {
       if (labelType === "gene") {
         const rangeQuery = bodybuilder()
           .size(0)
@@ -99,7 +100,7 @@ export const resolvers = {
           .build();
 
         const rangeResults = await client.search({
-          index: "scrna_genes",
+          index: `${patientID.toLowerCase()}_genes`,
           body: rangeQuery
         });
 
@@ -110,21 +111,22 @@ export const resolvers = {
           .size(0)
           .filter("term", "sample_id", sampleID)
           .filter("term", "gene", label)
-          .aggregation("histogram", "log_count", { interval: 1 })
+          .aggregation("histogram", "count", { interval: 1 })
           .build();
 
         const histoResults = await client.search({
-          index: "scrna_genes",
+          index: `${patientID.toLowerCase()}_genes`,
           body: histoquery
         });
 
         const geneBuckets =
-          histoResults["aggregations"]["agg_histogram_log_count"]["buckets"];
-        const totalNumCells = await getTotalNumCells(sampleID);
+          histoResults["aggregations"]["agg_histogram_count"]["buckets"];
+        const totalNumCells = await getTotalNumCells(patientID, sampleID);
         const numGeneCells = geneBuckets.reduce(
           (sum, bucket) => sum + bucket.doc_count,
           0
         );
+
         const numZeroCountCells = totalNumCells - numGeneCells;
 
         const [firstBucket, ...restBucket] = geneBuckets;
@@ -155,8 +157,8 @@ export const resolvers = {
         const results = await client.search({
           index:
             label === "cell_type" || label === "cluster"
-              ? "scrna_cells"
-              : "scrna_genes",
+              ? `${patientID.toLowerCase()}_cells`
+              : `${patientID.toLowerCase()}_genes`,
           body: query
         });
 
@@ -199,13 +201,13 @@ export const resolvers = {
   }
 };
 
-async function getTotalNumCells(sampleID) {
+async function getTotalNumCells(patientID, sampleID) {
   const query = bodybuilder()
     .filter("term", "sample_id", sampleID)
     .aggregation("cardinality", "cell_id")
     .build();
   const results = await client.search({
-    index: "scrna_cells",
+    index: `${patientID.toLowerCase()}_genes`,
     body: query
   });
 
