@@ -14,8 +14,8 @@ export const resolvers = {
   Query: {
     async patients() {
       const query = bodybuilder()
-        .size(50000)
-        .aggregation("terms", "patient_id")
+        .size(0)
+        .aggregation("terms", "patient_id", { size: 50000 })
         .build();
 
       const results = await client.search({
@@ -30,8 +30,8 @@ export const resolvers = {
 
     async samples(_, { patientID }) {
       const query = bodybuilder()
-        .size(50000)
-        .aggregation("terms", "sample_id")
+        .size(0)
+        .aggregation("terms", "sample_id", { size: 50000 })
         .filter("term", "patient_id", patientID)
         .build();
 
@@ -39,6 +39,7 @@ export const resolvers = {
         index: "patient_metadata",
         body: query
       });
+
       return results["aggregations"]["agg_terms_sample_id"]["buckets"].map(
         bucket => bucket.key
       );
