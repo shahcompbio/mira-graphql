@@ -143,8 +143,8 @@ export const resolvers = {
             ...bucket,
             sampleID,
             label,
-            min: bucket.key - 1,
-            max: bucket.key
+            min: bucket.key,
+            max: bucket.key + 1
           }))
         ];
       } else {
