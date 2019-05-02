@@ -151,7 +151,7 @@ export const resolvers = {
         const query = bodybuilder()
           .size(0)
           .filter("term", "sample_id", sampleID)
-          .aggregation("terms", label, { order: { _key: "asc" } })
+          .aggregation("terms", label, { size: 50000, order: { _key: "asc" } })
           .build();
 
         const results = await client.search({
