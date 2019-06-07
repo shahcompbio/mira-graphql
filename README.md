@@ -2,9 +2,14 @@
 
 This project contains the web-based **single-cell RNA (scRNA)** visualization dashboard for Spectrum.
 
-- [Database](https://github.com/shahcompbio/spectrum-scrna-db)
-- [**GraphQL**](https://github.com/shahcompbio/spectrum-scrna-graphql)
-- [React](https://github.com/shahcompbio/spectrum-scrna-react)
+- [Database](https://github.com/shahcompbio/mira-db)
+- [**GraphQL**](https://github.com/shahcompbio/mira-graphql)
+- [React](https://github.com/shahcompbio/mira-react)
+- [Docker](https://github.com/shahcompbio/mira-docker)
+
+## Documentation
+
+All documentation for Spectrum visualization can be found on https://shahcompbio-spectrum.netlify.com.
 
 ## Features
 
