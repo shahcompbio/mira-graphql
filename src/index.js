@@ -8,6 +8,7 @@ import { GraphQLScalarType, Kind } from "graphql";
 import * as cells from "./cells";
 import * as patients from "./patients";
 import * as colorLabels from "./colorLabels";
+import * as celltypes from "./celltypes";
 
 import { merge } from "lodash";
 
@@ -52,12 +53,19 @@ const baseResolvers = {
 };
 
 const server = new ApolloServer({
-  typeDefs: [baseSchema, cells.schema, patients.schema, colorLabels.schema],
+  typeDefs: [
+    baseSchema,
+    cells.schema,
+    patients.schema,
+    colorLabels.schema,
+    celltypes.schema
+  ],
   resolvers: merge(
     baseResolvers,
     cells.resolvers,
     patients.resolvers,
-    colorLabels.resolvers
+    colorLabels.resolvers,
+    celltypes.resolvers
   )
 });
 
