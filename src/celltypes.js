@@ -1,18 +1,21 @@
 const { gql } = require("apollo-server");
-
-// Hard coded data here
-const DATA = "";
+import { data } from "./data.js";
 
 export const schema = gql`
   extend type Query {
-    foo: String
+    markers: [dataPair!]!
+  }
+
+  type dataPair {
+    cellType: String!
+    markerGenes: [String!]!
   }
 `;
 
 export const resolvers = {
   Query: {
-    foo() {
-      return DATA;
+    async markers() {
+      return data;
     }
   }
 };
