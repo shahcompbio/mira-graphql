@@ -51,11 +51,6 @@ export const resolvers = {
         title: "Cell Properties",
         labels: [
           {
-            id: "cell_type",
-            title: "Cell Type",
-            type: "categorical"
-          },
-          {
             id: "cluster",
             title: "Cluster",
             type: "categorical"

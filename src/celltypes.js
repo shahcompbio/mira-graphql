@@ -35,7 +35,6 @@ export const resolvers = {
     async existingCellTypes(_, { patientID, sampleID }) {
       const query = bodybuilder()
         .size(0)
-        .filter("term", "patient_id", patientID)
         .filter("term", "sample_id", sampleID)
         .aggregation("terms", "cell_type", { size: 100 })
         .build();

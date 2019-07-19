@@ -93,9 +93,3 @@ export const resolvers = {
     label: root => root["label"]
   }
 };
-
-//   return results.hits.hits.map(hit => ({
-//     ...hit["_source"],
-//     label: hit["_source"][label]
-//   }));
-// },
