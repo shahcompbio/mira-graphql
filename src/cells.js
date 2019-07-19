@@ -11,6 +11,8 @@ export const schema = gql`
       label: String!
       labelType: String!
     ): [Cell!]!
+
+    nonGeneCells(patientID: String!, sampleID: String!): [Cell!]!
   }
 
   type Cell {
@@ -59,13 +61,30 @@ export const resolvers = {
             : 0
         }));
       }
-
       return results.hits.hits.map(hit => ({
         ...hit["_source"],
         label: hit["_source"][label]
       }));
+    },
+
+    async nonGeneCells(_, { patientID, sampleID }) {
+      const query = bodybuilder()
+        .size(50000)
+        .filter("term", "sample_id", sampleID)
+        .build();
+
+      const results = await client.search({
+        index: `${patientID.toLowerCase()}_cells`,
+        body: query
+      });
+
+      return results.hits.hits.map(hit => ({
+        ...hit["_source"],
+        label: hit["_source"]["cell_type"]
+      }));
     }
   },
+
   Cell: {
     id: root => `${root["sample_id"]}_${root["cell_id"]}`,
     name: root => root["cell_id"],
@@ -74,3 +93,9 @@ export const resolvers = {
     label: root => root["label"]
   }
 };
+
+//   return results.hits.hits.map(hit => ({
+//     ...hit["_source"],
+//     label: hit["_source"][label]
+//   }));
+// },
