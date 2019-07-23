@@ -5,7 +5,12 @@ import client from "./api/elasticsearch.js";
 export const schema = gql`
   extend type Query {
     cellAndMarkerGenesPair(patientID: String!): [Rho!]!
-    existingCellTypes(patientID: String!, sampleID: String!): [String!]!
+    existingCellTypes(patientID: String!, sampleID: String!): [Pairs!]
+  }
+
+  type Pairs {
+    cell: String
+    count: Int
   }
 
   type Rho {
@@ -44,11 +49,23 @@ export const resolvers = {
         body: query
       });
 
-      return results["aggregations"]["agg_terms_cell_type"]["buckets"]
+      const sorted = results["aggregations"]["agg_terms_cell_type"]["buckets"]
         .map(element => element.key)
         .sort();
+
+      return sorted.map(
+        cellType =>
+          results["aggregations"]["agg_terms_cell_type"]["buckets"].filter(
+            element => element.key === cellType
+          )[0]
+      );
     }
   },
+  Pairs: {
+    cell: root => root.key,
+    count: root => root["doc_count"]
+  },
+
   Rho: {
     cellType: root => root.key,
     markerGenes: root =>
