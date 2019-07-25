@@ -6,6 +6,7 @@ export const schema = gql`
   extend type Query {
     cellAndMarkerGenesPair(patientID: String!): [Rho!]!
     existingCellTypes(patientID: String!, sampleID: String!): [Pairs!]
+    qcTableValues(patientID: String!): [TableValue!]!
   }
 
   type Pairs {
@@ -16,6 +17,22 @@ export const schema = gql`
   type Rho {
     cellType: String!
     markerGenes: [String!]!
+  }
+
+  type TableValue {
+    sample_id: String
+    mito5: Int!
+    mito10: Int!
+    mito15: Int!
+    mito20: Int!
+    num_cells: Int!
+    num_reads: Int!
+    num_genes: Int!
+    mean_reads: Int!
+    median_genes: Int!
+    percent_barcodes: String!
+    sequencing_sat: String!
+    median_umi: Int!
   }
 `;
 
@@ -37,6 +54,7 @@ export const resolvers = {
 
       return results["aggregations"]["agg_terms_celltype"]["buckets"];
     },
+
     async existingCellTypes(_, { patientID, sampleID }) {
       const query = bodybuilder()
         .size(0)
@@ -59,8 +77,38 @@ export const resolvers = {
             element => element.key === cellType
           )[0]
       );
+    },
+    async qcTableValues(_, { patientID }) {
+      const query = bodybuilder()
+        .size(5000)
+        .filter("term", "patient_id", patientID)
+        .build();
+
+      const results = await client.search({
+        index: "patient_metadata",
+        body: query
+      });
+
+      return results.hits.hits.map(element => element["_source"]);
     }
   },
+
+  TableValue: {
+    sample_id: root => root["sample_id"],
+    mito5: root => root["mito5"],
+    mito10: root => root["mito10"],
+    mito15: root => root["mito15"],
+    mito20: root => root["mito20"],
+    num_cells: root => root["num_cells"],
+    num_reads: root => root["num_reads"],
+    num_genes: root => root["num_genes"],
+    mean_reads: root => root["mean_reads"],
+    median_genes: root => root["median_genes"],
+    percent_barcodes: root => root["percent_barcodes"],
+    sequencing_sat: root => root["sequencing_sat"],
+    median_umi: root => root["median_umi"]
+  },
+
   Pairs: {
     cell: root => root.key,
     count: root => root["doc_count"]
