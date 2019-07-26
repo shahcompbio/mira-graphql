@@ -46,18 +46,6 @@ export const resolvers = {
   Query: {
     async colorLabels(_, { patientID, sampleID }) {
       // TODO: Actually scrape some place to get these values
-      const cellGroup = {
-        id: "categorical",
-        title: "Cell Properties",
-        labels: [
-          {
-            id: "cluster",
-            title: "Cluster",
-            type: "categorical"
-          }
-        ]
-      };
-
       const geneQuery = bodybuilder()
         .size(0)
         .filter("term", "sample_id", sampleID)
@@ -83,7 +71,7 @@ export const resolvers = {
         labels: geneResults
       };
 
-      return [cellGroup, geneGroup];
+      return [geneGroup];
     },
     async colorLabelValues(_, { patientID, sampleID, label, labelType }) {
       if (labelType === "gene") {

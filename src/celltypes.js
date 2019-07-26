@@ -20,19 +20,19 @@ export const schema = gql`
   }
 
   type TableValue {
-    sample_id: String
-    mito5: Int!
-    mito10: Int!
-    mito15: Int!
-    mito20: Int!
-    num_cells: Int!
-    num_reads: Int!
-    num_genes: Int!
-    mean_reads: Int!
-    median_genes: Int!
-    percent_barcodes: String!
-    sequencing_sat: String!
-    median_umi: Int!
+    Sample_ID: String
+    Mito_5: Int!
+    Mito_10: Int!
+    Mito_15: Int!
+    Mito_20: Int!
+    Estimated_Number_of_Cells: Int!
+    Number_of_Reads: Int!
+    Number_of_Genes: Int!
+    Mean_Reads_per_Cell: Int!
+    Median_Genes_per_Cell: Int!
+    Valid_Barcodes: String!
+    Sequencing_Saturation: String!
+    Median_UMI_Counts_per_Cell: Int!
   }
 `;
 
@@ -94,19 +94,19 @@ export const resolvers = {
   },
 
   TableValue: {
-    sample_id: root => root["sample_id"],
-    mito5: root => root["mito5"],
-    mito10: root => root["mito10"],
-    mito15: root => root["mito15"],
-    mito20: root => root["mito20"],
-    num_cells: root => root["num_cells"],
-    num_reads: root => root["num_reads"],
-    num_genes: root => root["num_genes"],
-    mean_reads: root => root["mean_reads"],
-    median_genes: root => root["median_genes"],
-    percent_barcodes: root => root["percent_barcodes"],
-    sequencing_sat: root => root["sequencing_sat"],
-    median_umi: root => root["median_umi"]
+    Sample_ID: root => root["sample_id"],
+    Mito_5: root => root["mito5"],
+    Mito_10: root => root["mito10"],
+    Mito_15: root => root["mito15"],
+    Mito_20: root => root["mito20"],
+    Estimated_Number_of_Cells: root => root["num_cells"],
+    Number_of_Reads: root => root["num_reads"],
+    Number_of_Genes: root => root["num_genes"],
+    Mean_Reads_per_Cell: root => root["mean_reads"],
+    Median_Genes_per_Cell: root => root["median_genes"],
+    Valid_Barcodes: root => root["percent_barcodes"],
+    Sequencing_Saturation: root => root["sequencing_sat"],
+    Median_UMI_Counts_per_Cell: root => root["median_umi"]
   },
 
   Pairs: {
