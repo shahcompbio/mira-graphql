@@ -20,19 +20,21 @@ export const schema = gql`
   }
 
   type TableValue {
-    Sample_ID: String
-    Mito_5: Int!
-    Mito_10: Int!
-    Mito_15: Int!
-    Mito_20: Int!
-    Estimated_Number_of_Cells: Int!
-    Number_of_Reads: Int!
-    Number_of_Genes: Int!
-    Mean_Reads_per_Cell: Int!
-    Median_Genes_per_Cell: Int!
-    Valid_Barcodes: String!
-    Sequencing_Saturation: String!
-    Median_UMI_Counts_per_Cell: Int!
+    sampleID: Values!
+    numCells: Values!
+    mito20: Values!
+    numReads: Values!
+    numGenes: Values!
+    medianGenes: Values!
+    meanReads: Values!
+    validBarcodes: Values!
+    seqSat: Values!
+    medUMI: Values!
+  }
+
+  type Values {
+    name: String!
+    value: StringOrNum!
   }
 `;
 
@@ -94,19 +96,40 @@ export const resolvers = {
   },
 
   TableValue: {
-    Sample_ID: root => root["sample_id"],
-    Mito_5: root => root["mito5"],
-    Mito_10: root => root["mito10"],
-    Mito_15: root => root["mito15"],
-    Mito_20: root => root["mito20"],
-    Estimated_Number_of_Cells: root => root["num_cells"],
-    Number_of_Reads: root => root["num_reads"],
-    Number_of_Genes: root => root["num_genes"],
-    Mean_Reads_per_Cell: root => root["mean_reads"],
-    Median_Genes_per_Cell: root => root["median_genes"],
-    Valid_Barcodes: root => root["percent_barcodes"],
-    Sequencing_Saturation: root => root["sequencing_sat"],
-    Median_UMI_Counts_per_Cell: root => root["median_umi"]
+    sampleID: root => ({ name: "Sample ID", value: root["sample_id"] }),
+    numCells: root => ({
+      name: "Estimated Number of Cells",
+      value: root["num_cells"]
+    }),
+    mito20: root => ({ name: "QC (Mito<20)", value: root["mito20"] }),
+    numReads: root => ({
+      name: "Number of Reads",
+      value: root["num_reads"]
+    }),
+    numGenes: root => ({
+      name: "Number of Genes",
+      value: root["num_genes"]
+    }),
+    meanReads: root => ({
+      name: "Mean Reads per Cell",
+      value: root["mean_reads"]
+    }),
+    medianGenes: root => ({
+      name: "Median Genes per Cell",
+      value: root["median_genes"]
+    }),
+    validBarcodes: root => ({
+      name: "Valid Barcodes",
+      value: root["percent_barcodes"]
+    }),
+    seqSat: root => ({
+      name: "Sequencing Saturation",
+      value: root["sequencing_sat"]
+    }),
+    medUMI: root => ({
+      name: "Median UMI Counts per Cell",
+      value: root["median_umi"]
+    })
   },
 
   Pairs: {

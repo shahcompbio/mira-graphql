@@ -6,6 +6,7 @@
   "license": "MIT",
   "dependencies": {
     "@babel/polyfill": "^7.4.0",
+    "@material-ui/styles": "^4.2.1",
     "apollo-server": "^2.4.8",
     "apollo-server-express": "^2.4.8",
     "bodybuilder": "^2.2.17",
