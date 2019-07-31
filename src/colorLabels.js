@@ -83,9 +83,7 @@ export const resolvers = {
         labels: geneResults
       };
 
-      return sampleID === undefined
-        ? [geneGroup].filter(element => !element.hasOwnProperty("sample_id"))
-        : [geneGroup];
+      return sampleID === [geneGroup];
     },
 
     async colorLabelValues(_, { patientID, sampleID, label, labelType }) {
@@ -94,6 +92,7 @@ export const resolvers = {
           sampleID === undefined
             ? bodybuilder()
                 .size(0)
+                .notFilter("exists", "sample_id")
                 .filter("term", "gene", label)
                 .aggregation("max", "log_count")
                 .build()
@@ -116,6 +115,7 @@ export const resolvers = {
           sampleID === undefined
             ? bodybuilder()
                 .size(0)
+                .notFilter("exists", "sample_id")
                 .filter("term", "gene", label)
                 .aggregation("histogram", "count", { interval: 1 })
                 .build()
@@ -132,11 +132,7 @@ export const resolvers = {
         });
 
         const geneBuckets =
-          sampleID === undefined
-            ? histoResults["aggregations"]["agg_histogram_count"][
-                "buckets"
-              ].filter(element => !element.hasOwnProperty("sample_id"))
-            : histoResults["aggregations"]["agg_histogram_count"]["buckets"];
+          histoResults["aggregations"]["agg_histogram_count"]["buckets"];
 
         const totalNumCells = await getTotalNumCells(patientID, sampleID);
 
@@ -166,11 +162,24 @@ export const resolvers = {
           }))
         ];
       } else {
-        const query = bodybuilder()
-          .size(0)
-          .filter("term", "sample_id", sampleID)
-          .aggregation("terms", label, { size: 50000, order: { _key: "asc" } })
-          .build();
+        const query =
+          sampleID === undefined
+            ? bodybuilder()
+                .size(0)
+                .notFilter("exists", "sample_id")
+                .aggregation("terms", label, {
+                  size: 50000,
+                  order: { _key: "asc" }
+                })
+                .build()
+            : bodybuilder()
+                .size(0)
+                .filter("term", "sample_id", sampleID)
+                .aggregation("terms", label, {
+                  size: 50000,
+                  order: { _key: "asc" }
+                })
+                .build();
 
         const results = await client.search({
           index:

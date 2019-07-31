@@ -39,6 +39,7 @@ export const resolvers = {
   Query: {
     async patientCells(_, { patientID, label }) {
       const query = bodybuilder()
+        .notFilter("exists", "sample_id")
         .size(50000)
         .build();
 
@@ -49,6 +50,7 @@ export const resolvers = {
 
       const geneQuery = bodybuilder()
         .size(50000)
+        .notFilter("exists", "sample_id")
         .filter("term", "gene", label)
         .build();
 
@@ -74,21 +76,13 @@ export const resolvers = {
         label: hit["_source"]["cell_type"]
       }));
 
-      const filteredGenesArray = genesArray.filter(
-        element => !element.hasOwnProperty("sample_id")
-      );
-      const filteredCellTypesArray = cellTypesArray.filter(
-        element => !element.hasOwnProperty("sample_id")
-      );
-
-      const finalArray = filteredGenesArray.map(element => ({
+      const finalArray = genesArray.map(element => ({
         cell_id: element["cell_id"],
         x: element["x"],
         y: element["y"],
         label: element["label"],
-        celltype:
-          filteredCellTypesArray[genesArray.indexOf(element)]["cell_type"],
-        site: filteredCellTypesArray[genesArray.indexOf(element)]["site"]
+        celltype: cellTypesArray[genesArray.indexOf(element)]["cell_type"],
+        site: cellTypesArray[genesArray.indexOf(element)]["site"]
       }));
 
       return finalArray;
@@ -148,6 +142,7 @@ export const resolvers = {
         sampleID === undefined
           ? bodybuilder()
               .size(50000)
+              .notFilter("exists", "sample_id")
               .build()
           : bodybuilder()
               .size(50000)
@@ -159,24 +154,14 @@ export const resolvers = {
         body: query
       });
 
-      return sampleID === undefined
-        ? results.hits.hits
-            .filter(element => !element.hasOwnProperty("sample_id"))
-            .map(hit => ({
-              ...hit["_source"],
-              label: hit["_source"]["cell_type"]
-            }))
-        : results.hits.hits.map(hit => ({
-            ...hit["_source"],
-            label: hit["_source"]["cell_type"]
-          }));
+      return results.hits.hits.map(hit => hit["_source"]);
     }
   },
 
   ModCell: {
     x: root => root["x"],
     y: root => root["y"],
-    celltype: root => root["label"]
+    celltype: root => root["cell_type"]
   },
 
   PatientCell: {

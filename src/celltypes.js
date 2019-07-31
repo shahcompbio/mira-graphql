@@ -62,6 +62,7 @@ export const resolvers = {
         sampleID === undefined
           ? bodybuilder()
               .size(0)
+              .notFilter("exists", "sample_id")
               .aggregation("terms", "cell_type", { size: 100 })
               .build()
           : bodybuilder()
@@ -75,15 +76,9 @@ export const resolvers = {
         body: query
       });
 
-      const sorted =
-        sampleID === undefined
-          ? results["aggregations"]["agg_terms_cell_type"]["buckets"]
-              .filter(element => !element.hasOwnProperty("sample_id"))
-              .map(element => element.key)
-              .sort()
-          : results["aggregations"]["agg_terms_cell_type"]["buckets"]
-              .map(element => element.key)
-              .sort();
+      const sorted = results["aggregations"]["agg_terms_cell_type"]["buckets"]
+        .map(element => element.key)
+        .sort();
 
       return sorted.map(
         cellType =>
