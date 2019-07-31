@@ -5,13 +5,13 @@ import client from "./api/elasticsearch.js";
 
 export const schema = gql`
   extend type Query {
-    colorLabels(patientID: String!, sampleID: String!): [ColorLabelGroup!]!
+    colorLabels(patientID: String!, sampleID: String): [ColorLabelGroup!]!
     colorLabelValues(
       patientID: String!
-      sampleID: String!
+      sampleID: String
       label: String!
       labelType: String!
-    ): [ColorLabelValue!]!
+    ): [ColorLabelValue]
   }
   type ColorLabelGroup {
     id: String!
@@ -24,17 +24,17 @@ export const schema = gql`
     type: String!
   }
   interface ColorLabelValue {
-    id: ID!
+    id: ID
     name: StringOrNum!
     count: Int!
   }
   type Categorical implements ColorLabelValue {
-    id: ID!
+    id: ID
     name: StringOrNum!
     count: Int!
   }
   type Gene implements ColorLabelValue {
-    id: ID!
+    id: ID
     name: StringOrNum!
     count: Int!
     min: Int!
@@ -46,11 +46,23 @@ export const resolvers = {
   Query: {
     async colorLabels(_, { patientID, sampleID }) {
       // TODO: Actually scrape some place to get these values
-      const geneQuery = bodybuilder()
-        .size(0)
-        .filter("term", "sample_id", sampleID)
-        .aggregation("terms", "gene", { size: 50000, order: { _key: "asc" } })
-        .build();
+      const geneQuery =
+        sampleID === undefined
+          ? bodybuilder()
+              .size(0)
+              .aggregation("terms", "gene", {
+                size: 50000,
+                order: { _key: "asc" }
+              })
+              .build()
+          : bodybuilder()
+              .size(0)
+              .filter("term", "sample_id", sampleID)
+              .aggregation("terms", "gene", {
+                size: 50000,
+                order: { _key: "asc" }
+              })
+              .build();
 
       const results = await client.search({
         index: `${patientID.toLowerCase()}_genes`,
@@ -71,16 +83,26 @@ export const resolvers = {
         labels: geneResults
       };
 
-      return [geneGroup];
+      return sampleID === undefined
+        ? [geneGroup].filter(element => !element.hasOwnProperty("sample_id"))
+        : [geneGroup];
     },
+
     async colorLabelValues(_, { patientID, sampleID, label, labelType }) {
       if (labelType === "gene") {
-        const rangeQuery = bodybuilder()
-          .size(0)
-          .filter("term", "sample_id", sampleID)
-          .filter("term", "gene", label)
-          .aggregation("max", "log_count")
-          .build();
+        const rangeQuery =
+          sampleID === undefined
+            ? bodybuilder()
+                .size(0)
+                .filter("term", "gene", label)
+                .aggregation("max", "log_count")
+                .build()
+            : bodybuilder()
+                .size(0)
+                .filter("term", "sample_id", sampleID)
+                .filter("term", "gene", label)
+                .aggregation("max", "log_count")
+                .build();
 
         const rangeResults = await client.search({
           index: `${patientID.toLowerCase()}_genes`,
@@ -90,12 +112,19 @@ export const resolvers = {
         const maxCount =
           rangeResults["aggregations"]["agg_max_log_count"]["value"];
 
-        const histoquery = bodybuilder()
-          .size(0)
-          .filter("term", "sample_id", sampleID)
-          .filter("term", "gene", label)
-          .aggregation("histogram", "count", { interval: 1 })
-          .build();
+        const histoquery =
+          sampleID === undefined
+            ? bodybuilder()
+                .size(0)
+                .filter("term", "gene", label)
+                .aggregation("histogram", "count", { interval: 1 })
+                .build()
+            : bodybuilder()
+                .size(0)
+                .filter("term", "sample_id", sampleID)
+                .filter("term", "gene", label)
+                .aggregation("histogram", "count", { interval: 1 })
+                .build();
 
         const histoResults = await client.search({
           index: `${patientID.toLowerCase()}_genes`,
@@ -103,8 +132,14 @@ export const resolvers = {
         });
 
         const geneBuckets =
-          histoResults["aggregations"]["agg_histogram_count"]["buckets"];
+          sampleID === undefined
+            ? histoResults["aggregations"]["agg_histogram_count"][
+                "buckets"
+              ].filter(element => !element.hasOwnProperty("sample_id"))
+            : histoResults["aggregations"]["agg_histogram_count"]["buckets"];
+
         const totalNumCells = await getTotalNumCells(patientID, sampleID);
+
         const numGeneCells = geneBuckets.reduce(
           (sum, bucket) => sum + bucket.doc_count,
           0
@@ -146,18 +181,16 @@ export const resolvers = {
         });
 
         return results["aggregations"][`agg_terms_${label}`]["buckets"].map(
-          bucket => ({ ...bucket, sampleID, label })
+          bucket => ({ ...bucket, label })
         );
       }
     }
   },
   ColorLabelGroup: {
-    id: root => root.id,
     title: root => root.title,
     labels: root => root.labels
   },
   ColorLabel: {
-    id: root => root.id,
     title: root => root.title,
     type: root => root.type
   },
@@ -171,12 +204,10 @@ export const resolvers = {
     }
   },
   Categorical: {
-    id: root => `${root.sampleID}_${root.label}_${root.key}`,
     name: root => root.key,
     count: root => root.doc_count
   },
   Gene: {
-    id: root => `${root.sampleID}_${root.label}_${root.min}`,
     name: root => `${root.min} - ${root.max}`,
     count: root => root.doc_count,
     min: root => root.min,
@@ -185,10 +216,16 @@ export const resolvers = {
 };
 
 async function getTotalNumCells(patientID, sampleID) {
-  const query = bodybuilder()
-    .filter("term", "sample_id", sampleID)
-    .aggregation("cardinality", "cell_id")
-    .build();
+  const query =
+    sampleID === undefined
+      ? bodybuilder()
+          .aggregation("cardinality", "cell_id")
+          .build()
+      : bodybuilder()
+          .filter("term", "sample_id", sampleID)
+          .aggregation("cardinality", "cell_id")
+          .build();
+
   const results = await client.search({
     index: `${patientID.toLowerCase()}_genes`,
     body: query

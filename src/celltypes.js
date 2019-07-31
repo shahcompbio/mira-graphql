@@ -5,7 +5,7 @@ import client from "./api/elasticsearch.js";
 export const schema = gql`
   extend type Query {
     cellAndMarkerGenesPair(patientID: String!): [Rho!]!
-    existingCellTypes(patientID: String!, sampleID: String!): [Pairs!]
+    existingCellTypes(patientID: String!, sampleID: String): [Pairs!]
     qcTableValues(patientID: String!): [TableValue!]!
   }
 
@@ -58,20 +58,32 @@ export const resolvers = {
     },
 
     async existingCellTypes(_, { patientID, sampleID }) {
-      const query = bodybuilder()
-        .size(0)
-        .filter("term", "sample_id", sampleID)
-        .aggregation("terms", "cell_type", { size: 100 })
-        .build();
+      const query =
+        sampleID === undefined
+          ? bodybuilder()
+              .size(0)
+              .aggregation("terms", "cell_type", { size: 100 })
+              .build()
+          : bodybuilder()
+              .size(0)
+              .filter("term", "sample_id", sampleID)
+              .aggregation("terms", "cell_type", { size: 100 })
+              .build();
 
       const results = await client.search({
         index: `${patientID.toLowerCase()}_cells`,
         body: query
       });
 
-      const sorted = results["aggregations"]["agg_terms_cell_type"]["buckets"]
-        .map(element => element.key)
-        .sort();
+      const sorted =
+        sampleID === undefined
+          ? results["aggregations"]["agg_terms_cell_type"]["buckets"]
+              .filter(element => !element.hasOwnProperty("sample_id"))
+              .map(element => element.key)
+              .sort()
+          : results["aggregations"]["agg_terms_cell_type"]["buckets"]
+              .map(element => element.key)
+              .sort();
 
       return sorted.map(
         cellType =>
@@ -91,7 +103,9 @@ export const resolvers = {
         body: query
       });
 
-      return results.hits.hits.map(element => element["_source"]);
+      return results.hits.hits
+        .map(element => element["_source"])
+        .filter(element => element.hasOwnProperty("sample_id"));
     }
   },
 
