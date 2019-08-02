@@ -23,9 +23,9 @@ export const resolvers = {
         body: query
       });
 
-      return results["aggregations"]["agg_terms_patient_id"]["buckets"].map(
-        bucket => bucket.key
-      );
+      return results["aggregations"]["agg_terms_patient_id"]["buckets"]
+        .map(bucket => bucket.key)
+        .sort();
     },
 
     async samples(_, { patientID }) {
