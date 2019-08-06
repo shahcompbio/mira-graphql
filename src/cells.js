@@ -3,6 +3,8 @@ import bodybuilder from "bodybuilder";
 
 import client from "./api/elasticsearch.js";
 
+const threshold = 0.5;
+
 export const schema = gql`
   extend type Query {
     cells(patientID: String!, sampleID: String, label: String): [Cell]
@@ -74,7 +76,7 @@ export const resolvers = {
           label: hit["_source"]["cell_type"]
         }));
 
-        return genesArray.map(element => ({
+        const finalArray = genesArray.map(element => ({
           cell_id: element["cell_id"],
           sample_id: element["sample_id"],
           x: element["x"],
@@ -86,14 +88,55 @@ export const resolvers = {
               ? cellTypesArray[genesArray.indexOf(element)]["site"]
               : null
         }));
+
+        let newArr = finalArray;
+
+        //const threshold = finalArray.length > 10000 ? 0.25 : 0.5;
+
+        for (let i = 0; i < finalArray.length; i++) {
+          for (let j = 0; j < finalArray.length; j++) {
+            if (
+              finalArray[i] !== finalArray[j] &&
+              Math.abs(finalArray[i].x - finalArray[j].x) < threshold &&
+              Math.abs(finalArray[i].y - finalArray[j].y) < threshold &&
+              finalArray[i].celltype === finalArray[j].celltype
+            ) {
+              newArr.splice(j, 1);
+            }
+          }
+        }
+
+        console.log(newArr.length);
+
+        return newArr;
       } else {
-        return results.hits.hits
+        const finalArray = results.hits.hits
           .map(hit => hit["_source"])
           .map(element => ({
             celltype: element["cell_type"],
             x: element["x"],
             y: element["y"]
           }));
+
+        let newArr = finalArray;
+
+        //const threshold = finalArray.length > 10000 ? 0.25 : 0.5;
+
+        for (let i = 0; i < finalArray.length; i++) {
+          for (let j = 0; j < finalArray.length; j++) {
+            if (
+              finalArray[i] !== finalArray[j] &&
+              Math.abs(finalArray[i].x - finalArray[j].x) < threshold &&
+              Math.abs(finalArray[i].y - finalArray[j].y) < threshold &&
+              finalArray[i].celltype === finalArray[j].celltype
+            ) {
+              newArr.splice(j, 1);
+            }
+          }
+        }
+
+        console.log(newArr.length);
+        return newArr;
       }
     }
   },

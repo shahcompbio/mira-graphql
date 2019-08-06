@@ -83,7 +83,7 @@ export const resolvers = {
         labels: geneResults
       };
 
-      return sampleID === [geneGroup];
+      return [geneGroup];
     },
 
     async colorLabelValues(_, { patientID, sampleID, label, labelType }) {
