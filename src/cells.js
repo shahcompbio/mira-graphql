@@ -91,8 +91,6 @@ export const resolvers = {
 
         let newArr = finalArray;
 
-        //const threshold = finalArray.length > 10000 ? 0.25 : 0.5;
-
         for (let i = 0; i < finalArray.length; i++) {
           for (let j = 0; j < finalArray.length; j++) {
             if (
@@ -105,8 +103,6 @@ export const resolvers = {
             }
           }
         }
-
-        console.log(newArr.length);
 
         return newArr;
       } else {
@@ -120,8 +116,6 @@ export const resolvers = {
 
         let newArr = finalArray;
 
-        //const threshold = finalArray.length > 10000 ? 0.25 : 0.5;
-
         for (let i = 0; i < finalArray.length; i++) {
           for (let j = 0; j < finalArray.length; j++) {
             if (
@@ -135,7 +129,6 @@ export const resolvers = {
           }
         }
 
-        console.log(newArr.length);
         return newArr;
       }
     }
