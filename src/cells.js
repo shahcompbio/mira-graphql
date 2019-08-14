@@ -3,7 +3,7 @@ import bodybuilder from "bodybuilder";
 
 import client from "./api/elasticsearch.js";
 
-const threshold = 0.5;
+const threshold = 0.25;
 
 export const schema = gql`
   extend type Query {
@@ -105,6 +105,7 @@ export const resolvers = {
         }
 
         return newArr;
+        //return finalArray;
       } else {
         const finalArray = results.hits.hits
           .map(hit => hit["_source"])
@@ -130,6 +131,7 @@ export const resolvers = {
         }
 
         return newArr;
+        //return finalArray;
       }
     }
   },
