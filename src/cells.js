@@ -8,6 +8,7 @@ const threshold = 0.25;
 export const schema = gql`
   extend type Query {
     cells(patientID: String!, sampleID: String, label: String): [Cell]
+    sites(patientID: String!): [String!]!
   }
 
   type Cell {
@@ -16,13 +17,29 @@ export const schema = gql`
     x: Float!
     y: Float!
     label: Float
-    celltype: String!
+    celltype: String
     site: String
   }
 `;
 
 export const resolvers = {
   Query: {
+    async sites(_, { patientID }) {
+      const query = bodybuilder()
+        .size(0)
+        .notFilter("exists", "sample_id")
+        .aggregation("terms", "site", { size: 50 })
+        .build();
+
+      const results = await client.search({
+        index: `${patientID.toLowerCase()}_cells`,
+        body: query
+      });
+
+      return results["aggregations"]["agg_terms_site"]["buckets"]
+        .map(element => element.key)
+        .sort();
+    },
     async cells(_, { patientID, sampleID, label }) {
       const query =
         sampleID === undefined
@@ -39,6 +56,15 @@ export const resolvers = {
         index: `${patientID.toLowerCase()}_cells`,
         body: query
       });
+
+      if (label === "site") {
+        return results.hits.hits.map(element => ({
+          site: element["_source"]["site"],
+          celltype: element["_source"]["cell_type"],
+          x: element["_source"]["x"],
+          y: element["_source"]["y"]
+        }));
+      }
 
       if (label !== undefined) {
         const geneQuery =
@@ -105,7 +131,6 @@ export const resolvers = {
         }
 
         return newArr;
-        //return finalArray;
       } else {
         const finalArray = results.hits.hits
           .map(hit => hit["_source"])
@@ -131,7 +156,6 @@ export const resolvers = {
         }
 
         return newArr;
-        //return finalArray;
       }
     }
   },

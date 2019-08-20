@@ -83,7 +83,16 @@ export const resolvers = {
         labels: geneResults
       };
 
-      return [geneGroup];
+      return sampleID === undefined
+        ? [
+            {
+              id: "site",
+              title: "Site",
+              labels: [{ id: "site", title: "Site", type: "Categorical" }]
+            },
+            geneGroup
+          ]
+        : [geneGroup];
     },
 
     async colorLabelValues(_, { patientID, sampleID, label, labelType }) {
@@ -183,7 +192,7 @@ export const resolvers = {
 
         const results = await client.search({
           index:
-            label === "cell_type" || label === "cluster"
+            label === "site"
               ? `${patientID.toLowerCase()}_cells`
               : `${patientID.toLowerCase()}_genes`,
           body: query
