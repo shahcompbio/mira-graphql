@@ -57,7 +57,7 @@ export const resolvers = {
         body: query
       });
 
-      if (label === "site") {
+      if (label === "Site") {
         return results.hits.hits.map(element => ({
           site: element["_source"]["site"],
           celltype: element["_source"]["cell_type"],

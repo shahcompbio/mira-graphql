@@ -86,9 +86,9 @@ export const resolvers = {
       return sampleID === undefined
         ? [
             {
-              id: "site",
+              id: "Site",
               title: "Site",
-              labels: [{ id: "site", title: "Site", type: "Categorical" }]
+              labels: [{ id: "Site", title: "Site", type: "Categorical" }]
             },
             geneGroup
           ]
@@ -171,12 +171,14 @@ export const resolvers = {
           }))
         ];
       } else {
+        const modLabel = label === "Site" ? label.toLowerCase() : label;
+
         const query =
           sampleID === undefined
             ? bodybuilder()
                 .size(0)
                 .notFilter("exists", "sample_id")
-                .aggregation("terms", label, {
+                .aggregation("terms", modLabel, {
                   size: 50000,
                   order: { _key: "asc" }
                 })
@@ -184,7 +186,7 @@ export const resolvers = {
             : bodybuilder()
                 .size(0)
                 .filter("term", "sample_id", sampleID)
-                .aggregation("terms", label, {
+                .aggregation("terms", modLabel, {
                   size: 50000,
                   order: { _key: "asc" }
                 })
@@ -192,14 +194,14 @@ export const resolvers = {
 
         const results = await client.search({
           index:
-            label === "site"
+            label === "Site"
               ? `${patientID.toLowerCase()}_cells`
               : `${patientID.toLowerCase()}_genes`,
           body: query
         });
 
-        return results["aggregations"][`agg_terms_${label}`]["buckets"].map(
-          bucket => ({ ...bucket, label })
+        return results["aggregations"][`agg_terms_${modLabel}`]["buckets"].map(
+          bucket => ({ ...bucket, modLabel })
         );
       }
     }
