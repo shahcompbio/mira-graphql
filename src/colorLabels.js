@@ -83,7 +83,16 @@ export const resolvers = {
         labels: geneResults
       };
 
-      return sampleID === [geneGroup];
+      return sampleID === undefined
+        ? [
+            {
+              id: "Site",
+              title: "Site",
+              labels: [{ id: "Site", title: "Site", type: "Categorical" }]
+            },
+            geneGroup
+          ]
+        : [geneGroup];
     },
 
     async colorLabelValues(_, { patientID, sampleID, label, labelType }) {
@@ -162,12 +171,14 @@ export const resolvers = {
           }))
         ];
       } else {
+        const modLabel = label === "Site" ? label.toLowerCase() : label;
+
         const query =
           sampleID === undefined
             ? bodybuilder()
                 .size(0)
                 .notFilter("exists", "sample_id")
-                .aggregation("terms", label, {
+                .aggregation("terms", modLabel, {
                   size: 50000,
                   order: { _key: "asc" }
                 })
@@ -175,7 +186,7 @@ export const resolvers = {
             : bodybuilder()
                 .size(0)
                 .filter("term", "sample_id", sampleID)
-                .aggregation("terms", label, {
+                .aggregation("terms", modLabel, {
                   size: 50000,
                   order: { _key: "asc" }
                 })
@@ -183,14 +194,14 @@ export const resolvers = {
 
         const results = await client.search({
           index:
-            label === "cell_type" || label === "cluster"
+            label === "Site"
               ? `${patientID.toLowerCase()}_cells`
               : `${patientID.toLowerCase()}_genes`,
           body: query
         });
 
-        return results["aggregations"][`agg_terms_${label}`]["buckets"].map(
-          bucket => ({ ...bucket, label })
+        return results["aggregations"][`agg_terms_${modLabel}`]["buckets"].map(
+          bucket => ({ ...bucket, modLabel })
         );
       }
     }

@@ -3,9 +3,12 @@ import bodybuilder from "bodybuilder";
 
 import client from "./api/elasticsearch.js";
 
+const threshold = 0.25;
+
 export const schema = gql`
   extend type Query {
     cells(patientID: String!, sampleID: String, label: String): [Cell]
+    sites(patientID: String!): [String!]!
   }
 
   type Cell {
@@ -14,13 +17,29 @@ export const schema = gql`
     x: Float!
     y: Float!
     label: Float
-    celltype: String!
+    celltype: String
     site: String
   }
 `;
 
 export const resolvers = {
   Query: {
+    async sites(_, { patientID }) {
+      const query = bodybuilder()
+        .size(0)
+        .notFilter("exists", "sample_id")
+        .aggregation("terms", "site", { size: 50 })
+        .build();
+
+      const results = await client.search({
+        index: `${patientID.toLowerCase()}_cells`,
+        body: query
+      });
+
+      return results["aggregations"]["agg_terms_site"]["buckets"]
+        .map(element => element.key)
+        .sort();
+    },
     async cells(_, { patientID, sampleID, label }) {
       const query =
         sampleID === undefined
@@ -37,6 +56,15 @@ export const resolvers = {
         index: `${patientID.toLowerCase()}_cells`,
         body: query
       });
+
+      if (label === "Site") {
+        return results.hits.hits.map(element => ({
+          site: element["_source"]["site"],
+          celltype: element["_source"]["cell_type"],
+          x: element["_source"]["x"],
+          y: element["_source"]["y"]
+        }));
+      }
 
       if (label !== undefined) {
         const geneQuery =
@@ -74,7 +102,7 @@ export const resolvers = {
           label: hit["_source"]["cell_type"]
         }));
 
-        return genesArray.map(element => ({
+        const finalArray = genesArray.map(element => ({
           cell_id: element["cell_id"],
           sample_id: element["sample_id"],
           x: element["x"],
@@ -86,14 +114,48 @@ export const resolvers = {
               ? cellTypesArray[genesArray.indexOf(element)]["site"]
               : null
         }));
+
+        let newArr = finalArray;
+
+        for (let i = 0; i < finalArray.length; i++) {
+          for (let j = 0; j < finalArray.length; j++) {
+            if (
+              finalArray[i] !== finalArray[j] &&
+              Math.abs(finalArray[i].x - finalArray[j].x) < threshold &&
+              Math.abs(finalArray[i].y - finalArray[j].y) < threshold &&
+              finalArray[i].celltype === finalArray[j].celltype
+            ) {
+              newArr.splice(j, 1);
+            }
+          }
+        }
+
+        return newArr;
       } else {
-        return results.hits.hits
+        const finalArray = results.hits.hits
           .map(hit => hit["_source"])
           .map(element => ({
             celltype: element["cell_type"],
             x: element["x"],
             y: element["y"]
           }));
+
+        let newArr = finalArray;
+
+        for (let i = 0; i < finalArray.length; i++) {
+          for (let j = 0; j < finalArray.length; j++) {
+            if (
+              finalArray[i] !== finalArray[j] &&
+              Math.abs(finalArray[i].x - finalArray[j].x) < threshold &&
+              Math.abs(finalArray[i].y - finalArray[j].y) < threshold &&
+              finalArray[i].celltype === finalArray[j].celltype
+            ) {
+              newArr.splice(j, 1);
+            }
+          }
+        }
+
+        return newArr;
       }
     }
   },
