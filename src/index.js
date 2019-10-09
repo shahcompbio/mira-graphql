@@ -5,10 +5,10 @@ import { gql } from "apollo-server";
 
 import { GraphQLScalarType, Kind } from "graphql";
 
+import * as dashboard from "./dashboard";
+import * as stats from "./stats";
+import * as rho from "./rho";
 import * as cells from "./cells";
-import * as patients from "./patients";
-import * as colorLabels from "./colorLabels";
-import * as celltypes from "./celltypes";
 
 import { merge } from "lodash";
 
@@ -55,17 +55,25 @@ const baseResolvers = {
 const server = new ApolloServer({
   typeDefs: [
     baseSchema,
-    cells.schema,
-    patients.schema,
-    colorLabels.schema,
-    celltypes.schema
+    dashboard.schema,
+    stats.schema,
+    rho.schema,
+    cells.schema
+    // cells.schema,
+    // patients.schema,
+    // colorLabels.schema,
+    // celltypes.schema
   ],
   resolvers: merge(
     baseResolvers,
-    cells.resolvers,
-    patients.resolvers,
-    colorLabels.resolvers,
-    celltypes.resolvers
+    dashboard.resolvers,
+    stats.resolvers,
+    rho.resolvers,
+    cells.resolvers
+    // cells.resolvers,
+    // patients.resolvers,
+    // colorLabels.resolvers,
+    // celltypes.resolvers
   )
 });
 

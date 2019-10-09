@@ -2,170 +2,242 @@ const { gql } = require("apollo-server");
 import bodybuilder from "bodybuilder";
 
 import client from "./api/elasticsearch.js";
-
-const threshold = 0.25;
+import getSampleIDs from "./utils/getSampleIDs.js";
 
 export const schema = gql`
   extend type Query {
-    cells(patientID: String!, sampleID: String, label: String): [Cell]
-    sites(patientID: String!): [String!]!
+    cells(
+      type: String!
+      dashboardID: String!
+      props: [DashboardAttributeInput!]
+    ): [Cell!]!
+    dashboardCellAttributes(
+      type: String!
+      dashboardID: String!
+    ): [DashboardAttribute!]!
+    dashboardAttributeValues(
+      type: String!
+      dashboardID: String!
+      prop: DashboardAttributeInput!
+    ): [DashboardAttributeValue!]!
   }
 
   type Cell {
     id: ID
     name: String
-    x: Float!
-    y: Float!
-    label: Float
+    x: Float
+    y: Float
     celltype: String
-    site: String
+    values: [CellAttribute]
+  }
+
+  type CellAttribute {
+    label: String
+    value: StringOrNum
+  }
+
+  type DashboardAttribute {
+    label: String!
+    type: String!
+  }
+
+  type DashboardAttributeValue {
+    label: StringOrNum!
+    count: Int
+  }
+
+  input DashboardAttributeInput {
+    label: String!
+    type: String!
   }
 `;
 
 export const resolvers = {
   Query: {
-    async sites(_, { patientID }) {
+    async cells(_, { type, dashboardID, props }) {
+      const sampleIDs = await getSampleIDs(type, dashboardID);
+
+      const { geneProps, cellProps } = separateProps(props);
+
       const query = bodybuilder()
-        .size(0)
-        .notFilter("exists", "sample_id")
-        .aggregation("terms", "site", { size: 50 })
+        .size(10000)
+        .filter("terms", "sample_id", sampleIDs)
         .build();
 
       const results = await client.search({
-        index: `${patientID.toLowerCase()}_cells`,
+        index: "sample_cells",
         body: query
       });
 
-      return results["aggregations"]["agg_terms_site"]["buckets"]
-        .map(element => element.key)
-        .sort();
-    },
-    async cells(_, { patientID, sampleID, label }) {
-      const query =
-        sampleID === undefined
-          ? bodybuilder()
-              .size(50000)
-              .notFilter("exists", "sample_id")
-              .build()
-          : bodybuilder()
-              .size(50000)
-              .filter("term", "sample_id", sampleID)
-              .build();
-
-      const results = await client.search({
-        index: `${patientID.toLowerCase()}_cells`,
-        body: query
+      const redimQuery = bodybuilder()
+        .size(10000)
+        .build();
+      const redimResults = await client.search({
+        index: `dashboard_redim_${dashboardID.toLowerCase()}`,
+        body: redimQuery
       });
 
-      if (label === "Site") {
-        return results.hits.hits.map(element => ({
-          site: element["_source"]["site"],
-          celltype: element["_source"]["cell_type"],
-          x: element["_source"]["x"],
-          y: element["_source"]["y"]
-        }));
-      }
+      const redimMap = redimResults["hits"]["hits"].reduce(
+        (mapping, record) => ({
+          ...mapping,
+          [record["_source"]["cell_id"]]: record["_source"]
+        }),
+        {}
+      );
 
-      if (label !== undefined) {
-        const geneQuery =
-          sampleID === undefined
-            ? bodybuilder()
-                .size(50000)
-                .notFilter("exists", "sample_id")
-                .filter("term", "gene", label)
-                .build()
-            : bodybuilder()
-                .size(50000)
-                .filter("term", "sample_id", sampleID)
-                .filter("term", "gene", label)
-                .build();
+      if (geneProps.length > 0) {
+        const genesQuery = bodybuilder()
+          .size(10000)
+          .filter("term", "dashboard_id", dashboardID)
+          .filter("terms", "gene", geneProps)
+          .build();
 
         const geneResults = await client.search({
-          index: `${patientID.toLowerCase()}_genes`,
-          body: geneQuery
+          index: `dashboard_genes_${dashboardID.toLowerCase()}`,
+          body: genesQuery
         });
 
-        const geneRecords = geneResults.hits.hits.reduce((geneMap, hit) => ({
-          ...geneMap,
-          [hit["_source"]["cell_id"]]: hit["_source"]["count"]
-        }));
+        const geneMapping = geneResults["hits"]["hits"]
+          .map(record => record["_source"])
+          .reduce((geneMap, record) => {
+            const cellID = record["cell_id"];
+            if (geneMap.hasOwnProperty(cellID)) {
+              const cellRecords = geneMap[cellID];
 
-        const genesArray = results.hits.hits.map(hit => ({
-          ...hit["_source"],
-          label: geneRecords.hasOwnProperty(hit["_source"]["cell_id"])
-            ? geneRecords[hit["_source"]["cell_id"]]
-            : 0
-        }));
-
-        const cellTypesArray = results.hits.hits.map(hit => ({
-          ...hit["_source"],
-          label: hit["_source"]["cell_type"]
-        }));
-
-        const finalArray = genesArray.map(element => ({
-          cell_id: element["cell_id"],
-          sample_id: element["sample_id"],
-          x: element["x"],
-          y: element["y"],
-          label: element["label"],
-          celltype: cellTypesArray[genesArray.indexOf(element)]["cell_type"],
-          site:
-            sampleID === undefined
-              ? cellTypesArray[genesArray.indexOf(element)]["site"]
-              : null
-        }));
-
-        let newArr = finalArray;
-
-        for (let i = 0; i < finalArray.length; i++) {
-          for (let j = 0; j < finalArray.length; j++) {
-            if (
-              finalArray[i] !== finalArray[j] &&
-              Math.abs(finalArray[i].x - finalArray[j].x) < threshold &&
-              Math.abs(finalArray[i].y - finalArray[j].y) < threshold &&
-              finalArray[i].celltype === finalArray[j].celltype
-            ) {
-              newArr.splice(j, 1);
+              return {
+                ...geneMap,
+                [cellID]: { ...cellRecords, [record["gene"]]: record }
+              };
+            } else {
+              return { ...geneMap, [cellID]: { [record["gene"]]: record } };
             }
-          }
-        }
+          }, {});
 
-        return newArr;
+        return results["hits"]["hits"].map(record => ({
+          ...record["_source"],
+          cellProps,
+          geneProps,
+          geneMapping,
+          redimMap
+        }));
+      }
+      return results["hits"]["hits"].map(record => ({
+        ...record["_source"],
+        redimMap,
+        cellProps,
+        geneProps
+      }));
+    },
+
+    async dashboardCellAttributes(_, { type, dashboardID }) {
+      const cellFields = await client.indices.getMapping({
+        index: "sample_cells"
+      });
+
+      const cellAttributes = Object.keys(
+        cellFields["sample_cells"]["mappings"]["properties"]
+      )
+        .filter(field => !["sample_id", "cell_id", "cell_type"].includes(field))
+        .map(field => ({ label: field, type: "CELL" }));
+
+      const geneQuery = bodybuilder()
+        .size(0)
+        .agg("terms", "gene", { size: 50000, order: { _key: "asc" } })
+        .build();
+
+      const geneResults = await client.search({
+        index: `dashboard_genes_${dashboardID.toLowerCase()}`,
+        body: geneQuery
+      });
+
+      const geneAttributes = geneResults["aggregations"]["agg_terms_gene"][
+        "buckets"
+      ].map(bucket => ({ label: bucket["key"], type: "GENE" }));
+
+      return [...cellAttributes, ...geneAttributes];
+    },
+
+    async dashboardAttributeValues(_, { type, dashboardID, prop }) {
+      if (prop["type"] === "CELL") {
+        const sampleIDs = await getSampleIDs(type, dashboardID);
+
+        const query = bodybuilder()
+          .size(0)
+          .filter("terms", "sample_id", sampleIDs)
+          .agg(
+            "histogram",
+            prop["label"],
+            { interval: 0.1, extended_bounds: { min: 0, max: 1 } },
+            "agg_histogram"
+          )
+          .build();
+
+        const results = await client.search({
+          index: "sample_cells",
+          body: query
+        });
+
+        return results["aggregations"][`agg_histogram`]["buckets"];
       } else {
-        const finalArray = results.hits.hits
-          .map(hit => hit["_source"])
-          .map(element => ({
-            celltype: element["cell_type"],
-            x: element["x"],
-            y: element["y"]
-          }));
+        const query = bodybuilder()
+          .size(0)
+          .filter("term", "gene", prop["label"])
+          .agg("histogram", "log_count", { interval: 1 })
+          .build();
 
-        let newArr = finalArray;
+        const results = await client.search({
+          index: `dashboard_genes_${dashboardID.toLowerCase()}`,
+          body: query
+        });
 
-        for (let i = 0; i < finalArray.length; i++) {
-          for (let j = 0; j < finalArray.length; j++) {
-            if (
-              finalArray[i] !== finalArray[j] &&
-              Math.abs(finalArray[i].x - finalArray[j].x) < threshold &&
-              Math.abs(finalArray[i].y - finalArray[j].y) < threshold &&
-              finalArray[i].celltype === finalArray[j].celltype
-            ) {
-              newArr.splice(j, 1);
-            }
-          }
-        }
-
-        return newArr;
+        return results["aggregations"]["agg_histogram_log_count"]["buckets"];
       }
     }
   },
 
   Cell: {
+    id: root => root["cell_id"],
     name: root => root["cell_id"],
-    x: root => root["x"],
-    y: root => root["y"],
+    x: root => root["redimMap"][root["cell_id"]]["x"],
+    y: root => root["redimMap"][root["cell_id"]]["y"],
+    celltype: root => root["cell_type"],
+    values: root => [
+      ...root["cellProps"].map(prop => ({
+        label: prop,
+        value: root[prop]
+      })),
+      ...root["geneProps"].map(prop => ({
+        label: prop,
+        value:
+          root["geneMapping"].hasOwnProperty(root["cell_id"]) &&
+          root["geneMapping"][root["cell_id"]].hasOwnProperty(prop)
+            ? root["geneMapping"][root["cell_id"]][prop]["log_count"]
+            : 0
+      }))
+    ]
+  },
+
+  CellAttribute: {
     label: root => root["label"],
-    celltype: root => root["celltype"],
-    site: root => root["site"]
+    value: root => root["value"]
+  },
+
+  DashboardAttribute: {
+    label: root => root["label"],
+    type: root => root["type"]
+  },
+
+  DashboardAttributeValue: {
+    label: root => root["key"],
+    count: root => root["doc_count"]
   }
 };
+
+const separateProps = props =>
+  props.reduce(
+    ({ geneProps, cellProps }, prop) =>
+      prop["type"] === "GENE"
+        ? { geneProps: [...geneProps, prop["label"]], cellProps }
+        : { cellProps: [...cellProps, prop["label"]], geneProps },
+    { geneProps: [], cellProps: [] }
+  );
