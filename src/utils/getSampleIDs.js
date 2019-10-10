@@ -19,6 +19,8 @@ export default async function getSamples(type, dashboardID) {
       body: query
     });
 
-    return result["hits"]["hits"].map(record => record["_source"]["sample_id"]);
+    return result["hits"]["hits"]
+      .map(record => record["_source"]["sample_id"])
+      .sort();
   }
 }

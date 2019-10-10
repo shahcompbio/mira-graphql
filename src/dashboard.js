@@ -51,10 +51,12 @@ export const resolvers = {
         body: query
       });
 
-      return results["hits"]["hits"].map(record => ({
-        type: root,
-        ...record["_source"]
-      }));
+      return results["hits"]["hits"]
+        .map(record => ({
+          type: root,
+          ...record["_source"]
+        }))
+        .sort((a, b) => (a["dashboard_id"] > b["dashboard_id"] ? 1 : -1));
     }
   },
 
