@@ -6,7 +6,8 @@ import getSampleIDs from "./utils/getSampleIDs";
 
 export const schema = gql`
   extend type Query {
-    sample_stats(type: String!, dashboardID: String!): [SampleStats!]!
+    sampleStats(type: String!, dashboardID: String!): [SampleStats!]!
+    sampleStatsHeaders(type: String!, dashboardID: String!): [String!]!
   }
 
   type SampleStats {
@@ -27,7 +28,7 @@ export const schema = gql`
 
 export const resolvers = {
   Query: {
-    async sample_stats(_, { type, dashboardID }) {
+    async sampleStats(_, { type, dashboardID }) {
       const sampleIDs = await getSampleIDs(type, dashboardID);
 
       const query = bodybuilder()
@@ -41,6 +42,27 @@ export const resolvers = {
       });
 
       return results["hits"]["hits"].map(record => record["_source"]);
+    },
+
+    async sampleStatsHeaders(_, { type, dashboardID }) {
+      const sampleIDs = await getSampleIDs(type, dashboardID);
+      const query = bodybuilder()
+        .size(0)
+        .filter("terms", "sample_id", sampleIDs)
+        .agg("terms", "stat")
+        .build();
+
+      const results = await client.search({
+        index: "sample_stats",
+        body: query
+      });
+
+      const METADATA_HEADERS = ["patientID", "surgery", "site", "sort"];
+
+      const STATS_HEADERS = results["aggregations"]["agg_terms_stat"]["buckets"]
+        .map(bucket => bucket["key"])
+        .sort();
+      return [...METADATA_HEADERS, ...STATS_HEADERS];
     }
   },
 
