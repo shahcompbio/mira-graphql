@@ -24,6 +24,7 @@ export const schema = gql`
     id: ID
     name: String!
     metadata: [Metadatum!]!
+    stats: [Metadatum!]!
   }
 
   type Metadatum {
@@ -71,7 +72,7 @@ export const resolvers = {
         .agg("terms", "sort");
 
       const query = addFilters(baseQuery, filters).build();
-      console.log(query);
+
       const results = await client.search({
         index: "sample_metadata",
         body: query
@@ -173,7 +174,32 @@ export const resolvers = {
           sort: "Sort"
         }[option],
         value: root[option]
-      }))
+      })),
+    stats: async root => {
+      const sampleID = root["sample_id"];
+
+      const query = bodybuilder()
+        .size(10000)
+        .filter("term", "sample_id", sampleID)
+        .build();
+
+      const results = await client.search({
+        index: "sample_stats",
+        body: query
+      });
+
+      return results["hits"]["hits"]
+        .map(record => {
+          const data = record["_source"];
+          const { stat, value } = data;
+          return {
+            id: `${root["sample_id"]}_${stat}_${value}`,
+            name: stat,
+            value
+          };
+        })
+        .sort((a, b) => (a["name"] <= b["name"] ? -1 : 1));
+    }
   }
 };
 
