@@ -6,7 +6,7 @@ import getSampleIDs from "./utils/getSampleIDs.js";
 
 export const schema = gql`
   extend type Query {
-    celltypes(type: String!, dashboardID: String!): [Rho!]!
+    celltypes(type: String, dashboardID: String): [Rho!]!
   }
 
   type Rho {
@@ -32,7 +32,7 @@ export const resolvers = {
         body: query
       });
 
-      const sampleIDs = await getSampleIDs(type, dashboardID);
+      const sampleIDs = type ? await getSampleIDs(type, dashboardID) : "";
       return results["aggregations"]["agg_terms_celltype"]["buckets"]
         .map(bucket => ({
           celltype: bucket.key,
@@ -41,7 +41,7 @@ export const resolvers = {
           ),
           sampleIDs
         }))
-        .sort();
+        .sort((a, b) => (a["celltype"] < b["celltype"] ? -1 : 1));
     }
   },
 

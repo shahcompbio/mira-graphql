@@ -13,6 +13,7 @@ export const schema = gql`
   type DashboardCluster {
     dashboards: [Dashboard!]!
     metadata: [Option!]!
+    stats: [String!]!
   }
 
   type Dashboard {
@@ -136,6 +137,18 @@ export const resolvers = {
           .map(bucket => bucket["key"])
           .sort()
       }));
+    },
+
+    stats: async root => {
+      // TODO: Unhardcode this. but right now it's the same across all samples. No need to change a good thing.
+      return [
+        "Estimated Number of Cells",
+        "Median Genes per Cell",
+        "Median UMI Counts",
+        "Mito20",
+        "Number of Genes",
+        "Number of Reads"
+      ];
     }
   },
 

@@ -9,7 +9,7 @@ export const schema = gql`
     cells(
       type: String!
       dashboardID: String!
-      props: [DashboardAttributeInput!]
+      props: [DashboardAttributeInput!]!
     ): [Cell!]!
     dashboardCellAttributes(
       type: String!
@@ -154,11 +154,31 @@ export const resolvers = {
         "buckets"
       ].map(bucket => ({ label: bucket["key"], type: "GENE" }));
 
-      return [...cellAttributes, ...geneAttributes];
+      return [
+        { label: "celltype", type: "CELL" },
+        ...cellAttributes,
+        ...geneAttributes
+      ];
     },
 
     async dashboardAttributeValues(_, { type, dashboardID, prop }) {
-      if (prop["type"] === "CELL") {
+      if (prop["label"] === "celltype") {
+        const query = bodybuilder()
+          .size(0)
+          .agg("terms", "celltype", { size: 50 }, a => {
+            return a.aggregation("terms", "marker", { size: 50 });
+          })
+          .build();
+
+        const results = await client.search({
+          index: "rho_markers",
+          body: query
+        });
+
+        return results["aggregations"]["agg_terms_celltype"]["buckets"].sort(
+          (a, b) => (a["key"] < b["key"] ? -1 : 1)
+        );
+      } else if (prop["type"] === "CELL") {
         const sampleIDs = await getSampleIDs(type, dashboardID);
 
         const query = bodybuilder()
@@ -234,10 +254,12 @@ export const resolvers = {
 };
 
 const separateProps = props =>
-  props.reduce(
-    ({ geneProps, cellProps }, prop) =>
-      prop["type"] === "GENE"
-        ? { geneProps: [...geneProps, prop["label"]], cellProps }
-        : { cellProps: [...cellProps, prop["label"]], geneProps },
-    { geneProps: [], cellProps: [] }
-  );
+  props
+    .filter(prop => prop["label"] !== "celltype")
+    .reduce(
+      ({ geneProps, cellProps }, prop) =>
+        prop["type"] === "GENE"
+          ? { geneProps: [...geneProps, prop["label"]], cellProps }
+          : { cellProps: [...cellProps, prop["label"]], geneProps },
+      { geneProps: [], cellProps: [] }
+    );
