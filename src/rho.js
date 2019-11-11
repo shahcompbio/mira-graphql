@@ -33,7 +33,9 @@ export const resolvers = {
       });
 
       const sampleIDs = type ? await getSampleIDs(type, dashboardID) : "";
-      return results["aggregations"]["agg_terms_celltype"]["buckets"]
+      const processedBuckets = results["aggregations"]["agg_terms_celltype"][
+        "buckets"
+      ]
         .map(bucket => ({
           celltype: bucket.key,
           markers: bucket["agg_terms_marker"]["buckets"].map(
@@ -42,6 +44,11 @@ export const resolvers = {
           sampleIDs
         }))
         .sort((a, b) => (a["celltype"] < b["celltype"] ? -1 : 1));
+
+      return [
+        ...processedBuckets,
+        { celltype: "Other", markers: [], sampleIDs }
+      ];
     }
   },
 
