@@ -64,9 +64,11 @@ export const resolvers = {
         element => element.key
       );
     },
+
     async dashboardClusters(_, { type, filters }) {
       const baseQuery = bodybuilder()
         .size(10000)
+        .filter("term", "type", type)
         .agg("terms", "patient_id")
         .agg("terms", "surgery")
         .agg("terms", "site")
@@ -75,50 +77,24 @@ export const resolvers = {
       const query = addFilters(baseQuery, filters).build();
 
       const results = await client.search({
-        index: "sample_metadata",
+        index: "dashboard_entry",
         body: query
       });
 
-      return { type, results, filters };
+      return { results, filters };
     }
   },
 
   DashboardCluster: {
     dashboards: async root => {
-      const { type, results } = root;
+      const { results } = root;
 
-      // This only works for sample level. Gonna have to figure out a smart solution for patient/site/whatev
-
-      if (type === "sample") {
-        return results["hits"]["hits"]
-          .map(record => ({
-            type: root,
-            ...record["_source"]
-          }))
-          .sort((a, b) => (a["sample_id"] > b["sample_id"] ? 1 : -1));
-      }
-
-      // const baseQuery = bodybuilder().size(10000);
-      // //.filter("term", "type", root["type"]); / Not needed for sample level
-
-      // const query = addFilters(baseQuery, root["filters"]).build();
-
-      // const results = await client.search({
-      //   index: "sample_metadata",
-      //   body: query
-      // });
-
-      // return results["hits"]["hits"]
-      //   .map(record => ({
-      //     type: root,
-      //     ...record["_source"]
-      //   }))
-      //   .sort((a, b) => (a["dashboard_id"] > b["dashboard_id"] ? 1 : -1));
+      return results["hits"]["hits"]
+        .map(record => record["_source"])
+        .sort((a, b) => (a["dashboard_id"] > b["dashboard_id"] ? 1 : -1));
     },
 
     metadata: async root => {
-      // TODO: Flesh this out. Right now we can (safely) assume just want to scrape for all possible values
-
       const { results, filters } = root;
 
       return ["patient_id", "surgery", "site", "sort"].map(option => ({
@@ -139,7 +115,7 @@ export const resolvers = {
       }));
     },
 
-    stats: async root => {
+    stats: root => {
       // TODO: Unhardcode this. but right now it's the same across all samples. No need to change a good thing.
       return [
         "Estimated Number of Cells",
@@ -153,33 +129,33 @@ export const resolvers = {
   },
 
   Dashboard: {
-    id: root => root["sample_id"],
+    id: root => root["dashboard_id"],
     samples: async root => {
-      return [root];
-      // const sampleIDs = await getSampleIDs(root["type"], root["sample_id"]);
+      if (root["type"] === "sample") {
+        return root;
+      } else {
+        const sampleIDs = root["sample_ids"];
+        const query = bodybuilder()
+          .size(1000)
+          .filter("terms", "dashboard_id", sampleIDs)
+          .build();
 
-      // const query = bodybuilder()
-      //   .size(10000)
-      //   .filter("terms", "sample_id", sampleIDs)
-      //   .build();
+        const results = await client.search({
+          index: "dashboard_entry",
+          body: query
+        });
 
-      // const results = await client.search({
-      //   index: "sample_metadata",
-      //   body: query
-      // });
-
-      // return results["hits"]["hits"]
-      //   .map(record => record["_source"])
-      //   .sort((a, b) => (a["sample_id"] > b["sample_id"] ? 1 : -1));
+        return results["hits"]["hits"].map(record => record["_source"]);
+      }
     }
   },
 
   Sample: {
-    id: root => root["sample_id"],
-    name: root => root["sample_id"],
+    id: root => root["dashboard_id"],
+    name: root => root["dashboard_id"],
     metadata: root =>
       ["patient_id", "surgery", "site", "sort"].map(option => ({
-        id: `${root["sample_id"]}_${option}`,
+        id: `${root["dashboard_id"]}_${option}`,
         name: {
           patient_id: "Patient",
           surgery: "Surgery",
@@ -189,7 +165,7 @@ export const resolvers = {
         value: root[option]
       })),
     stats: async root => {
-      const sampleID = root["sample_id"];
+      const sampleID = root["dashboard_id"];
 
       const query = bodybuilder()
         .size(10000)
@@ -206,7 +182,7 @@ export const resolvers = {
           const data = record["_source"];
           const { stat, value } = data;
           return {
-            id: `${root["sample_id"]}_${stat}_${value}`,
+            id: `${sampleID}_${stat}_${value}`,
             name: stat,
             value
           };
