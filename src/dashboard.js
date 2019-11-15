@@ -132,7 +132,7 @@ export const resolvers = {
     id: root => root["dashboard_id"],
     samples: async root => {
       if (root["type"] === "sample") {
-        return root;
+        return [root];
       } else {
         const sampleIDs = root["sample_ids"];
         const query = bodybuilder()
@@ -144,7 +144,6 @@ export const resolvers = {
           index: "dashboard_entry",
           body: query
         });
-
         return results["hits"]["hits"].map(record => record["_source"]);
       }
     }
@@ -162,7 +161,7 @@ export const resolvers = {
           site: "Site",
           sort: "Sort"
         }[option],
-        value: root[option]
+        value: Array.isArray(root[option]) ? root[option][0] : root[option]
       })),
     stats: async root => {
       const sampleID = root["dashboard_id"];
