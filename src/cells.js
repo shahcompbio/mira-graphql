@@ -57,76 +57,43 @@ export const resolvers = {
     async cells(_, { type, dashboardID, props }) {
       const sampleIDs = await getSampleIDs(type, dashboardID);
 
-      const { geneProps, cellProps } = separateProps(props);
+      const { geneProps, cellProps, sampleProps } = separateProps(props);
 
+      // Get redim
       const query = bodybuilder()
         .size(10000)
-        .filter("terms", "sample_id", sampleIDs)
         .build();
 
       const results = await client.search({
-        index: "sample_cells",
+        index: `dashboard_redim_${dashboardID.toLowerCase()}`,
         body: query
       });
 
-      const redimQuery = bodybuilder()
-        .size(10000)
-        .build();
-      const redimResults = await client.search({
-        index: `dashboard_redim_${dashboardID.toLowerCase()}`,
-        body: redimQuery
-      });
+      // get sample cells; then cross filter
 
-      const redimMap = redimResults["hits"]["hits"].reduce(
-        (mapping, record) => ({
-          ...mapping,
-          [record["_source"]["cell_id"]]: record["_source"]
-        }),
-        {}
-      );
+      // Get metadata
+      // Get cells props (+ celltype)
+      // Get gene props
 
-      if (geneProps.length > 0) {
-        const genesQuery = bodybuilder()
-          .size(10000)
-          .filter("term", "dashboard_id", dashboardID)
-          .filter("terms", "gene", geneProps)
-          .build();
+      const cellMap = await getCellMap(sampleIDs);
 
-        const geneResults = await client.search({
-          index: `dashboard_genes_${dashboardID.toLowerCase()}`,
-          body: genesQuery
-        });
+      const geneMap =
+        geneProps.length > 0 ? await getGeneMap(dashboardID, geneProps) : {};
 
-        const geneMapping = geneResults["hits"]["hits"]
-          .map(record => record["_source"])
-          .reduce((geneMap, record) => {
-            const cellID = record["cell_id"];
-            if (geneMap.hasOwnProperty(cellID)) {
-              const cellRecords = geneMap[cellID];
+      const sampleMap =
+        sampleProps.length > 0 ? await getSampleMap(sampleIDs) : {};
 
-              return {
-                ...geneMap,
-                [cellID]: { ...cellRecords, [record["gene"]]: record }
-              };
-            } else {
-              return { ...geneMap, [cellID]: { [record["gene"]]: record } };
-            }
-          }, {});
+      // NOTE: Filtering is only necessary because the sample filtering and umap filtering are out of sync
+      return results["hits"]["hits"]
+        .map(record => record["_source"])
+        .filter(record => cellMap.hasOwnProperty(record["cell_id"]))
+        .map(record => ({
+          ...record,
 
-        return results["hits"]["hits"].map(record => ({
-          ...record["_source"],
-          cellProps,
-          geneProps,
-          geneMapping,
-          redimMap
+          cells: [cellProps, cellMap],
+          genes: [geneProps, geneMap],
+          samples: [sampleProps, sampleMap]
         }));
-      }
-      return results["hits"]["hits"].map(record => ({
-        ...record["_source"],
-        redimMap,
-        cellProps,
-        geneProps
-      }));
     },
 
     async dashboardCellAttributes(_, { type, dashboardID }) {
@@ -154,8 +121,17 @@ export const resolvers = {
         "buckets"
       ].map(bucket => ({ label: bucket["key"], type: "GENE" }));
 
+      const sampleAttributes =
+        type === "sample"
+          ? []
+          : ["surgery", "site", "treatment"].map(attr => ({
+              label: attr,
+              type: "SAMPLE"
+            }));
+
       return [
         { label: "celltype", type: "CELL" },
+        ...sampleAttributes,
         ...cellAttributes,
         ...geneAttributes
       ];
@@ -175,9 +151,9 @@ export const resolvers = {
           body: query
         });
 
-        return results["aggregations"]["agg_terms_celltype"]["buckets"].sort(
-          (a, b) => (a["key"] < b["key"] ? -1 : 1)
-        );
+        return results["aggregations"]["agg_terms_celltype"][
+          "buckets"
+        ].sort((a, b) => (a["key"] < b["key"] ? -1 : 1));
       } else if (prop["type"] === "CELL") {
         const sampleIDs = await getSampleIDs(type, dashboardID);
 
@@ -198,6 +174,21 @@ export const resolvers = {
         });
 
         return results["aggregations"][`agg_histogram`]["buckets"];
+      } else if (prop["type"] === "SAMPLE") {
+        const query = bodybuilder()
+          .filter("term", "dashboard_id", dashboardID)
+          .build();
+
+        const results = await client.search({
+          index: "dashboard_entry",
+          body: query
+        });
+        // TODO: Currently doesn't take into account count (although none of the queries actually use this right now)
+        return results["hits"]["hits"][0]["_source"][prop["label"]].map(
+          label => ({
+            key: label
+          })
+        );
       } else {
         const query = bodybuilder()
           .size(0)
@@ -218,22 +209,37 @@ export const resolvers = {
   Cell: {
     id: root => root["cell_id"],
     name: root => root["cell_id"],
-    x: root => root["redimMap"][root["cell_id"]]["x"],
-    y: root => root["redimMap"][root["cell_id"]]["y"],
-    celltype: root => root["cell_type"],
+    x: root => root["x"],
+    y: root => root["y"],
+    celltype: root => root["cells"][1][root["cell_id"]]["cell_type"],
     values: root => [
-      ...root["cellProps"].map(prop => ({
+      ...root["cells"][0].map(prop => ({
         label: prop,
-        value: root[prop]
+        value: root["cells"][1][root["cell_id"]][root[prop]]
       })),
-      ...root["geneProps"].map(prop => ({
+      ...root["genes"][0].map(prop => ({
         label: prop,
         value:
-          root["geneMapping"].hasOwnProperty(root["cell_id"]) &&
-          root["geneMapping"][root["cell_id"]].hasOwnProperty(prop)
-            ? root["geneMapping"][root["cell_id"]][prop]["log_count"]
+          root["genes"][1].hasOwnProperty(root["cell_id"]) &&
+          root["genes"][1][root["cell_id"]].hasOwnProperty(prop)
+            ? root["genes"][1][root["cell_id"]][prop]["log_count"]
             : 0
-      }))
+      })),
+      ...root["samples"][0].map(prop => {
+        // console.log(
+        //   root["samples"][1],
+        //   root["cells"][1][root["cell_id"]]["sample_id"]
+        // );
+
+        return {
+          label: prop,
+          // Ugg this is awful but basically need to map by sampleID of cell
+          value:
+            root["samples"][1][root["cells"][1][root["cell_id"]]["sample_id"]][
+              prop
+            ][0]
+        };
+      })
     ]
   },
 
@@ -257,9 +263,87 @@ const separateProps = props =>
   props
     .filter(prop => prop["label"] !== "celltype")
     .reduce(
-      ({ geneProps, cellProps }, prop) =>
+      (propMap, prop) =>
         prop["type"] === "GENE"
-          ? { geneProps: [...geneProps, prop["label"]], cellProps }
-          : { cellProps: [...cellProps, prop["label"]], geneProps },
-      { geneProps: [], cellProps: [] }
+          ? { ...propMap, geneProps: [...propMap["geneProps"], prop["label"]] }
+          : prop["type"] === "CELL"
+          ? { ...propMap, cellProps: [...propMap["cellProps"], prop["label"]] }
+          : {
+              ...propMap,
+              sampleProps: [...propMap["sampleProps"], prop["label"]]
+            },
+      { geneProps: [], cellProps: [], sampleProps: [] }
     );
+
+async function getGeneMap(dashboardID, props) {
+  const query = bodybuilder()
+    .size(10000)
+    .filter("term", "dashboard_id", dashboardID)
+    .filter("terms", "gene", props)
+    .build();
+
+  const results = await client.search({
+    index: `dashboard_genes_${dashboardID.toLowerCase()}`,
+    body: query
+  });
+
+  const mapping = results["hits"]["hits"]
+    .map(record => record["_source"])
+    .reduce((geneMap, record) => {
+      const cellID = record["cell_id"];
+      if (geneMap.hasOwnProperty(cellID)) {
+        const cellRecords = geneMap[cellID];
+
+        return {
+          ...geneMap,
+          [cellID]: { ...cellRecords, [record["gene"]]: record }
+        };
+      } else {
+        return { ...geneMap, [cellID]: { [record["gene"]]: record } };
+      }
+    }, {});
+
+  return mapping;
+}
+
+async function getCellMap(sampleIDs) {
+  const query = bodybuilder()
+    .size(10000)
+    .filter("terms", "sample_id", sampleIDs)
+    .build();
+
+  const results = await client.search({
+    index: "sample_cells",
+    body: query
+  });
+
+  const mapping = results["hits"]["hits"]
+    .map(record => record["_source"])
+    .reduce((currMap, record) => ({ ...currMap, [record["cell_id"]]: record }));
+
+  return mapping;
+}
+
+async function getSampleMap(sampleIDs) {
+  const query = bodybuilder()
+    .size(1000)
+    .filter("terms", "dashboard_id", sampleIDs)
+    .build();
+
+  const results = await client.search({
+    index: "dashboard_entry",
+    body: query
+  });
+
+  const mapping = results["hits"]["hits"]
+    .map(record => record["_source"])
+    .reduce(
+      (currMap, record) => ({
+        ...currMap,
+        [record["dashboard_id"]]: record
+      }),
+      {}
+    );
+
+  return mapping;
+}
