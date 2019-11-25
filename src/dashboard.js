@@ -19,6 +19,7 @@ export const schema = gql`
   type Dashboard {
     id: ID
     samples: [Sample!]!
+    metadata: [Option!]!
   }
 
   type Sample {
@@ -146,7 +147,19 @@ export const resolvers = {
         });
         return results["hits"]["hits"].map(record => record["_source"]);
       }
-    }
+    },
+    metadata: root =>
+      ["patient_id", "surgery", "site", "sort"].map(option => ({
+        id: `${root["dashboard_id"]}_${option}`,
+        name: {
+          patient_id: "Patient",
+          surgery: "Surgery",
+          site: "Site",
+          sort: "Sort"
+        }[option],
+        key: option,
+        values: Array.isArray(root[option]) ? root[option] : [root[option]]
+      }))
   },
 
   Sample: {
