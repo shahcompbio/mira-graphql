@@ -61,7 +61,7 @@ export const resolvers = {
 
       // Get redim
       const query = bodybuilder()
-        .size(10000)
+        .size(50000)
         .build();
 
       const results = await client.search({
@@ -82,7 +82,6 @@ export const resolvers = {
 
       const sampleMap =
         sampleProps.length > 0 ? await getSampleMap(sampleIDs) : {};
-
       // NOTE: Filtering is only necessary because the sample filtering and umap filtering are out of sync
       return results["hits"]["hits"]
         .map(record => record["_source"])
@@ -277,7 +276,7 @@ const separateProps = props =>
 
 async function getGeneMap(dashboardID, props) {
   const query = bodybuilder()
-    .size(10000)
+    .size(50000)
     .filter("term", "dashboard_id", dashboardID)
     .filter("terms", "gene", props)
     .build();
@@ -308,7 +307,7 @@ async function getGeneMap(dashboardID, props) {
 
 async function getCellMap(sampleIDs) {
   const query = bodybuilder()
-    .size(10000)
+    .size(50000)
     .filter("terms", "sample_id", sampleIDs)
     .build();
 
@@ -319,7 +318,10 @@ async function getCellMap(sampleIDs) {
 
   const mapping = results["hits"]["hits"]
     .map(record => record["_source"])
-    .reduce((currMap, record) => ({ ...currMap, [record["cell_id"]]: record }));
+    .reduce(
+      (currMap, record) => ({ ...currMap, [record["cell_id"]]: record }),
+      {}
+    );
 
   return mapping;
 }
