@@ -152,11 +152,9 @@ export const resolvers = {
           "buckets"
         ].sort((a, b) => (a["key"] < b["key"] ? -1 : 1));
       } else if (prop["type"] === "CELL") {
-        const sampleIDs = await getSampleIDs(type, dashboardID);
-
         const query = bodybuilder()
           .size(0)
-          .filter("terms", "sample_id", sampleIDs)
+          .filter("term", "dashboard_id", dashboardID)
           .agg(
             "histogram",
             prop["label"],
@@ -166,7 +164,7 @@ export const resolvers = {
           .build();
 
         const results = await client.search({
-          index: "sample_cells",
+          index: "dashboard_cells",
           body: query
         });
 
@@ -299,27 +297,6 @@ async function getGeneMap(dashboardID, props) {
         return { ...geneMap, [cellID]: { [record["gene"]]: record } };
       }
     }, {});
-
-  return mapping;
-}
-
-async function getCellMap(sampleIDs) {
-  const query = bodybuilder()
-    .size(50000)
-    .filter("terms", "sample_id", sampleIDs)
-    .build();
-
-  const results = await client.search({
-    index: "sample_cells",
-    body: query
-  });
-
-  const mapping = results["hits"]["hits"]
-    .map(record => record["_source"])
-    .reduce(
-      (currMap, record) => ({ ...currMap, [record["cell_id"]]: record }),
-      {}
-    );
 
   return mapping;
 }
