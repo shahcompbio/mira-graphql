@@ -62,10 +62,11 @@ export const resolvers = {
       // Get redim
       const query = bodybuilder()
         .size(50000)
+        .filter("term", "dashboard_id", dashboardID)
         .build();
 
       const results = await client.search({
-        index: `dashboard_redim_${dashboardID.toLowerCase()}`,
+        index: `dashboard_cells`,
         body: query
       });
 
@@ -75,35 +76,32 @@ export const resolvers = {
       // Get cells props (+ celltype)
       // Get gene props
 
-      const cellMap = await getCellMap(sampleIDs);
-
       const geneMap =
         geneProps.length > 0 ? await getGeneMap(dashboardID, geneProps) : {};
 
       const sampleMap =
         sampleProps.length > 0 ? await getSampleMap(sampleIDs) : {};
-      // NOTE: Filtering is only necessary because the sample filtering and umap filtering are out of sync
-      return results["hits"]["hits"]
-        .map(record => record["_source"])
-        .filter(record => cellMap.hasOwnProperty(record["cell_id"]))
-        .map(record => ({
-          ...record,
 
-          cells: [cellProps, cellMap],
-          genes: [geneProps, geneMap],
-          samples: [sampleProps, sampleMap]
-        }));
+      return results["hits"]["hits"].map(record => ({
+        ...record["_source"],
+        cellProps,
+        genes: [geneProps, geneMap],
+        samples: [sampleProps, sampleMap]
+      }));
     },
 
     async dashboardCellAttributes(_, { type, dashboardID }) {
       const cellFields = await client.indices.getMapping({
-        index: "sample_cells"
+        index: "dashboard_cells"
       });
 
       const cellAttributes = Object.keys(
-        cellFields["sample_cells"]["mappings"]["properties"]
+        cellFields["dashboard_cells"]["mappings"]["properties"]
       )
-        .filter(field => !["sample_id", "cell_id", "cell_type"].includes(field))
+        .filter(
+          field =>
+            !["dashboard_id", "cell_id", "cell_type", "x", "y"].includes(field)
+        )
         .map(field => ({ label: field, type: "CELL" }));
 
       const geneQuery = bodybuilder()
@@ -210,11 +208,11 @@ export const resolvers = {
     name: root => root["cell_id"],
     x: root => root["x"],
     y: root => root["y"],
-    celltype: root => root["cells"][1][root["cell_id"]]["cell_type"],
+    celltype: root => root["cell_type"],
     values: root => [
-      ...root["cells"][0].map(prop => ({
+      ...root["cellProps"].map(prop => ({
         label: prop,
-        value: root["cells"][1][root["cell_id"]][root[prop]]
+        value: root[prop]
       })),
       ...root["genes"][0].map(prop => ({
         label: prop,

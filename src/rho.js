@@ -32,7 +32,6 @@ export const resolvers = {
         body: query
       });
 
-      const sampleIDs = type ? await getSampleIDs(type, dashboardID) : "";
       const processedBuckets = results["aggregations"]["agg_terms_celltype"][
         "buckets"
       ]
@@ -41,13 +40,13 @@ export const resolvers = {
           markers: bucket["agg_terms_marker"]["buckets"].map(
             element => element["key"]
           ),
-          sampleIDs
+          dashboardID
         }))
         .sort((a, b) => (a["celltype"] < b["celltype"] ? -1 : 1));
 
       return [
         ...processedBuckets,
-        { celltype: "Other", markers: [], sampleIDs }
+        { celltype: "Other", markers: [], dashboardID }
       ];
     }
   },
@@ -58,12 +57,12 @@ export const resolvers = {
     count: async root => {
       const query = bodybuilder()
         .size(10000)
-        .filter("terms", "sample_id", root["sampleIDs"])
+        .filter("term", "dashboard_id", root["dashboardID"])
         .filter("term", "cell_type", root["celltype"])
         .build();
 
       const results = await client.search({
-        index: "sample_cells",
+        index: "dashboard_cells",
         body: query
       });
 
