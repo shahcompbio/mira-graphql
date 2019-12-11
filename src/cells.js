@@ -229,10 +229,7 @@ export const resolvers = {
         return {
           label: prop,
           // Ugg this is awful but basically need to map by sampleID of cell
-          value:
-            root["samples"][1][root["cells"][1][root["cell_id"]]["sample_id"]][
-              prop
-            ][0]
+          value: root["samples"][1][root["sample_id"]][prop][0]
         };
       })
     ]
