@@ -145,7 +145,9 @@ export const resolvers = {
           index: "dashboard_entry",
           body: query
         });
-        return results["hits"]["hits"].map(record => record["_source"]);
+        return results["hits"]["hits"]
+          .map(record => record["_source"])
+          .sort((a, b) => (a["dashboard_id"] < b["dashboard_id"] ? -1 : 1));
       }
     },
     metadata: root =>
