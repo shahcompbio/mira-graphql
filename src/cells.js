@@ -221,11 +221,6 @@ export const resolvers = {
             : 0
       })),
       ...root["samples"][0].map(prop => {
-        // console.log(
-        //   root["samples"][1],
-        //   root["cells"][1][root["cell_id"]]["sample_id"]
-        // );
-
         return {
           label: prop,
           // Ugg this is awful but basically need to map by sampleID of cell
