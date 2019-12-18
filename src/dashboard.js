@@ -20,6 +20,12 @@ export const schema = gql`
     id: ID
     samples: [Sample!]!
     metadata: [Option!]!
+    celltypeProportion: [CellCount!]!
+  }
+
+  type CellCount {
+    key: String!
+    doc_count: Int!
   }
 
   type Sample {
@@ -161,8 +167,22 @@ export const resolvers = {
         }[option],
         key: option,
         values: Array.isArray(root[option]) ? root[option] : [root[option]]
-      }))
-  },
+      })),
+    celltypeProportion: async root => {
+        const sampleIDs = root["sample_ids"];
+        const query = bodybuilder()
+          .size(0)
+          .filter("terms", "sample_id", sampleIDs)
+          .aggregation("terms", "cell_type")
+          .build();
+        const results = await client.search({
+          index: "dashboard_cells",
+          body: query
+        });
+        console.log(results)
+        return results["aggregations"]["agg_terms_cell_type"]["buckets"] //results["hits"]["hits"].map(record => record["_source"]);
+      }
+    },
 
   Sample: {
     id: root => root["dashboard_id"],
