@@ -100,7 +100,14 @@ export const resolvers = {
       )
         .filter(
           field =>
-            !["dashboard_id", "cell_id", "cell_type", "x", "y"].includes(field)
+            ![
+              "dashboard_id",
+              "cell_id",
+              "cell_type",
+              "x",
+              "y",
+              "sample_id"
+            ].includes(field)
         )
         .map(field => ({ label: field, type: "CELL" }));
 
