@@ -56,7 +56,7 @@ export const resolvers = {
     name: root => root["celltype"],
     count: async root => {
       const query = bodybuilder()
-        .size(10000)
+        .size(50000)
         .filter("term", "dashboard_id", root["dashboardID"])
         .filter("term", "cell_type", root["celltype"])
         .build();
