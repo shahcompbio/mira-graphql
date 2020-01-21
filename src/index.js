@@ -10,6 +10,8 @@ import * as stats from "./stats";
 import * as rho from "./rho";
 import * as cells from "./cells";
 
+import * as density from "./density";
+
 import { merge } from "lodash";
 
 const baseSchema = gql`
@@ -58,7 +60,8 @@ const server = new ApolloServer({
     dashboard.schema,
     stats.schema,
     rho.schema,
-    cells.schema
+    cells.schema,
+    density.schema
     // cells.schema,
     // patients.schema,
     // colorLabels.schema,
@@ -69,7 +72,8 @@ const server = new ApolloServer({
     dashboard.resolvers,
     stats.resolvers,
     rho.resolvers,
-    cells.resolvers
+    cells.resolvers,
+    density.resolvers
     // cells.resolvers,
     // patients.resolvers,
     // colorLabels.resolvers,
