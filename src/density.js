@@ -5,12 +5,17 @@ import client from "./api/elasticsearch.js";
 
 export const schema = gql`
   extend type Query {
-    density(type: String!, dashboardID: String!): [DensityBin!]
+    density(type: String!, dashboardID: String!): [Bins!]
+    density2(type: String!, dashboardID: String!): [DensityBin!]
+  }
+  type Bins {
+    size: Int!
+    bin: [DensityBin!]
   }
 
   type DensityBin {
-    x: Int!
-    y: Int!
+    x: Float!
+    y: Float!
     values: [DensityBinValue!]
   }
 
@@ -27,6 +32,84 @@ export const resolvers = {
       const query = bodybuilder()
         .size(50000)
         .filter("term", "dashboard_id", dashboardID)
+        .aggregation("terms", "bin_size", {
+          size: 50000,
+          order: { _key: "asc" }
+        })
+        .build();
+
+      const results = await client.search({
+        index: `dashboard_cells_density`,
+        body: query
+      });
+      const records = results["aggregations"]["agg_terms_bin_size"][
+        "buckets"
+      ].map(bucket => ({
+        binSize: bucket["key"],
+        dashboardID
+      }));
+      return records;
+    },
+
+    async density2(_, { type, dashboardID }) {
+      const sizeQuery = bodybuilder()
+        .size(0)
+        .filter("term", "dashboard_id", dashboardID)
+        .aggregation("stats", "x")
+        .aggregation("stats", "y")
+        .build();
+
+      const sizeResults = await client.search({
+        index: "dashboard_cells",
+        body: sizeQuery
+      });
+
+      const { agg_stats_x, agg_stats_y } = sizeResults["aggregations"];
+
+      const xBinSize = (agg_stats_x["max"] - agg_stats_x["min"]) / 100;
+      const yBinSize = (agg_stats_y["max"] - agg_stats_y["min"]) / 100;
+
+      const query = bodybuilder()
+        .size(0)
+        .filter("term", "dashboard_id", dashboardID)
+
+        .aggregation(
+          "histogram",
+          "x",
+          { interval: xBinSize, min_doc_count: 1 },
+          a =>
+            a.aggregation(
+              "histogram",
+              "y",
+              { interval: yBinSize, min_doc_count: 1 },
+              a => a.aggregation("terms", "cell_type", { size: 1000 })
+            )
+        )
+        .build();
+
+      const results = await client.search({
+        index: "dashboard_cells",
+        body: query
+      });
+
+      const records = results["aggregations"]["agg_histogram_x"][
+        "buckets"
+      ].reduce(
+        (records, xBucket) => [...records, ...processXBuckets(xBucket)],
+        []
+      );
+
+      return records;
+    }
+  },
+
+  Bins: {
+    size: root => root["binSize"],
+    bin: async ({ binSize, dashboardID }) => {
+      const query = bodybuilder()
+        .size(50000)
+        .filter("term", "dashboard_id", dashboardID)
+        .filter("term", "bin_size", binSize)
         .sort([{ x: "asc" }, { y: "asc" }, { count: "desc" }])
         .build();
 
@@ -82,3 +165,13 @@ const condenseResults = records => {
   const [firstRecord, ...restRecords] = records;
   return helper(restRecords, [], firstRecord, [firstRecord]);
 };
+
+const processXBuckets = xBucket =>
+  xBucket["agg_histogram_y"]["buckets"].map(yBucket => ({
+    x: xBucket["key"],
+    y: yBucket["key"],
+    values: yBucket["agg_terms_cell_type"]["buckets"].map(celltypeBucket => ({
+      celltype: celltypeBucket["key"],
+      count: celltypeBucket["doc_count"]
+    }))
+  }));
