@@ -137,7 +137,68 @@ async function getBinnedData(
 
     return records;
   } else if (label["type"] === "SAMPLE") {
+    const query = getBaseDensityQuery(dashboardID, xBinSize, yBinSize, a =>
+      a.aggregation("terms", "sample_id", { size: 1000 })
+    );
+
+    const results = await client.search({
+      index: "dashboard_cells",
+      body: query.build()
+    });
+
+    const [patientID, sortID] = dashboardID.split("_");
+    const metadataQuery = bodybuilder()
+      .size(1000)
+      .filter("term", "patient_id", patientID)
+      .filter("term", "sort", sortID)
+      .build();
+
+    const metadataResults = await client.search({
+      index: "dashboard_entry",
+      body: metadataQuery
+    });
+
+    const metadata = metadataResults["hits"]["hits"]
+      .map(record => record["_source"])
+      .reduce(
+        (metadataMap, record) => ({
+          ...metadataMap,
+          [record["dashboard_id"]]: record
+        }),
+        {}
+      );
+
+    const records = results["aggregations"]["agg_histogram_x"][
+      "buckets"
+    ].reduce(
+      (records, xBucket) => [
+        ...records,
+        ...processXBuckets(
+          xBucket,
+          xBinSize,
+          yBinSize,
+          !highlightedGroup ? "sample_id" : highlightedGroup,
+          !highlightedGroup
+            ? yBucket =>
+                metadata[yBucket[`agg_terms_sample_id`]["buckets"][0]["key"]][
+                  label["label"]
+                ][0]
+            : yBucket =>
+                calculateProportion(
+                  yBucket[`agg_terms_sample_id`]["buckets"].map(record => ({
+                    ...record,
+                    key: metadata[record["key"]][label["label"]][0]
+                  })),
+                  highlightedGroup
+                )
+        )
+      ],
+      []
+    );
+
+    return records;
   } else {
+    // Is genes
   }
 }
 
