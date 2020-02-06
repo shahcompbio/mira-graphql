@@ -10,6 +10,11 @@ export const schema = gql`
       label: AttributeInput!
       highlightedGroup: AttributeInput
     ): [DensityBin!]
+    attributeCounts(
+      dashboardID: String!
+      label: AttributeInput!
+      highlightedGroup: AttributeInput
+    ): [AttributeValue!]
 
     attributes(dashboardType: String!, dashboardID: String!): [Attribute!]!
   }
@@ -25,6 +30,14 @@ export const schema = gql`
     isNum: Boolean!
     type: String!
     label: String!
+  }
+
+  type AttributeValue {
+    isNum: Boolean!
+    type: String!
+    label: String!
+    value: StringOrNum!
+    count: Int!
   }
 
   input AttributeInput {
@@ -121,6 +134,33 @@ export const resolvers = {
         ...CELL_NUMERICAL,
         ...GENE_NUMERICAL
       ];
+    },
+
+    async attributeCounts(_, { dashboardID, label, highlightedGroup }) {
+      if (label["isNum"]) {
+        if (label["type"] === "CELL") {
+          return await getCellNumericalCounts(
+            dashboardID,
+            label,
+            highlightedGroup
+          );
+        } else {
+          // is "GENE"
+
+          return await getGeneExpressionCounts(
+            dashboardID,
+            label,
+            highlightedGroup
+          );
+        }
+      } else {
+        // is categorical
+        if (label["type"] === "CELL") {
+          return await getCelltypeCounts(dashboardID, label, highlightedGroup);
+        } else {
+          return await getSampleCounts(dashboardID, label, highlightedGroup);
+        }
+      }
     }
   }
 };
@@ -428,9 +468,32 @@ async function getGeneBins(
   xBinSize,
   yBinSize
 ) {
+  const allBins = await getAllBins(dashboardID, xBinSize, yBinSize);
+
+  const processProbYBucket = (yBuckets, getValue) =>
+    yBuckets.reduce(
+      (yMap, bucket) => ({
+        ...yMap,
+        [Math.round(bucket["key"] / yBinSize)]: getValue(bucket)
+      }),
+      {}
+    );
+
+  const getDataBins = (results, getValue) =>
+    results["aggregations"]["agg_histogram_x"]["buckets"].reduce(
+      (xMap, xBucket) => ({
+        ...xMap,
+        [Math.round(xBucket["key"] / xBinSize)]: processProbYBucket(
+          xBucket["agg_histogram_y"]["buckets"],
+          getValue
+        )
+      }),
+      {}
+    );
+
   if (!highlightedGroup) {
     const query = getBaseDensityQuery(dashboardID, xBinSize, yBinSize, a =>
-      a.aggregation("percentiles", "log_count")
+      a.aggregation("stats", "log_count")
     )
       .filter("term", "gene", label["label"])
       .build();
@@ -439,23 +502,25 @@ async function getGeneBins(
       index: `dashboard_genes_${dashboardID.toLowerCase()}`,
       body: query
     });
-    return results["aggregations"]["agg_histogram_x"]["buckets"].reduce(
-      (records, xBucket) => [
-        ...records,
-        ...processXBuckets(
-          xBucket,
-          xBinSize,
-          yBinSize,
-          label["label"],
-          yBucket => yBucket[`agg_percentiles_log_count`]["values"]["50.0"]
-        )
-      ],
-      []
+
+    const dataBins = getDataBins(
+      results,
+      yBucket => yBucket["agg_stats_log_count"]["sum"]
     );
+
+    return allBins.map(record => ({
+      ...record,
+      label: label["label"],
+      value:
+        dataBins.hasOwnProperty(record["x"]) &&
+        dataBins[record["x"]].hasOwnProperty(record["y"])
+          ? dataBins[record["x"]][record["y"]] / record["value"]
+          : 0
+    }));
   } else if (isSameLabel(label, highlightedGroup)) {
     const allBins = await getAllBins(dashboardID, xBinSize, yBinSize);
     const query = getBaseDensityQuery(dashboardID, xBinSize, yBinSize, a =>
-      a.aggregation("percentiles", "log_count")
+      a.aggregation("stats", "log_count")
     )
       .filter("term", "gene", label["label"])
       .filter("range", "log_count", {
@@ -468,27 +533,9 @@ async function getGeneBins(
       index: `dashboard_genes_${dashboardID.toLowerCase()}`,
       body: query
     });
+    ["doc_count"];
 
-    const processProbYBucket = yBuckets =>
-      yBuckets.reduce(
-        (yMap, bucket) => ({
-          ...yMap,
-          [Math.round(bucket["key"] / yBinSize)]: bucket["doc_count"]
-        }),
-        {}
-      );
-
-    const dataBins = results["aggregations"]["agg_histogram_x"][
-      "buckets"
-    ].reduce(
-      (xMap, xBucket) => ({
-        ...xMap,
-        [Math.round(xBucket["key"] / xBinSize)]: processProbYBucket(
-          xBucket["agg_histogram_y"]["buckets"]
-        )
-      }),
-      {}
-    );
+    const dataBins = getDataBins(results, yBucket => yBucket["doc_count"]);
 
     return allBins.map(record => ({
       ...record,
@@ -500,13 +547,10 @@ async function getGeneBins(
     }));
   } else {
     // highlightedGroup is another filter
-
-    const allBins = await getAllBins(dashboardID, xBinSize, yBinSize);
-
     const cellIDs = await getCellIDs(dashboardID, highlightedGroup);
 
     const query = getBaseDensityQuery(dashboardID, xBinSize, yBinSize, a =>
-      a.aggregation("percentiles", "log_count")
+      a.aggregation("stats", "log_count")
     )
       .filter("term", "gene", label["label"])
       .filter("terms", "cell_id", cellIDs)
@@ -517,27 +561,9 @@ async function getGeneBins(
       body: query
     });
 
-    const processProbYBucket = yBuckets =>
-      yBuckets.reduce(
-        (yMap, bucket) => ({
-          ...yMap,
-          [Math.round(bucket["key"] / yBinSize)]: bucket[
-            `agg_percentiles_log_count`
-          ]["values"]["50.0"]
-        }),
-        {}
-      );
-
-    const dataBins = results["aggregations"]["agg_histogram_x"][
-      "buckets"
-    ].reduce(
-      (xMap, xBucket) => ({
-        ...xMap,
-        [Math.round(xBucket["key"] / xBinSize)]: processProbYBucket(
-          xBucket["agg_histogram_y"]["buckets"]
-        )
-      }),
-      {}
+    const dataBins = getDataBins(
+      results,
+      yBucket => yBucket["agg_stats_log_count"]["sum"]
     );
 
     return allBins.map(record => ({
@@ -546,7 +572,7 @@ async function getGeneBins(
       value:
         dataBins.hasOwnProperty(record["x"]) &&
         dataBins[record["x"]].hasOwnProperty(record["y"])
-          ? dataBins[record["x"]][record["y"]]
+          ? dataBins[record["x"]][record["y"]] / record["value"]
           : ""
     }));
   }
@@ -825,3 +851,223 @@ const calculateProportion = (counts, highlightedGroup) => {
     ? 0
     : filteredRecords[0]["doc_count"] / total;
 };
+
+async function getCelltypeCounts(dashboardID, label, highlightedGroup) {
+  const celltypeQuery = bodybuilder()
+    .size(0)
+    .aggregation("terms", "celltype", { size: 50 })
+    .build();
+
+  const celltypeResults = await client.search({
+    index: "rho_markers",
+    body: celltypeQuery
+  });
+
+  const celltypes = [
+    ...celltypeResults["aggregations"]["agg_terms_celltype"]["buckets"]
+      .map(bucket => bucket["key"])
+      .sort(),
+    "Other"
+  ];
+
+  const cellIDs = !highlightedGroup
+    ? []
+    : await getCellIDs(dashboardID, highlightedGroup);
+
+  const query = !highlightedGroup
+    ? bodybuilder()
+        .size(0)
+        .filter("term", "dashboard_id", dashboardID)
+        .aggregation("terms", "cell_type", { size: 1000 })
+        .build()
+    : bodybuilder()
+        .size(0)
+        .filter("term", "dashboard_id", dashboardID)
+        .filter("terms", "cell_id", cellIDs)
+        .aggregation("terms", "cell_type", { size: 1000 })
+        .build();
+
+  const results = await client.search({
+    index: "dashboard_cells",
+    body: query
+  });
+
+  const counts = results["aggregations"]["agg_terms_cell_type"][
+    "buckets"
+  ].reduce(
+    (countsMap, bucket) => ({
+      ...countsMap,
+      [bucket["key"]]: bucket["doc_count"]
+    }),
+    {}
+  );
+
+  return celltypes.map(record => ({
+    ...label,
+    value: record,
+    count: counts.hasOwnProperty(record) ? counts[record] : 0
+  }));
+}
+
+async function getSampleCounts(dashboardID, label, highlightedGroup) {
+  const [patientID, sortID] = dashboardID.split("_");
+
+  const sampleIDquery = bodybuilder()
+    .size(1000)
+    .filter("term", "patient_id", patientID)
+    .filter("term", "sort", sortID)
+    .filter("term", "type", "sample")
+    .aggregation("terms", label["label"], { size: 1000 })
+    .build();
+
+  const sampleIDresults = await client.search({
+    index: "dashboard_entry",
+    body: sampleIDquery
+  });
+
+  const sampleIDMap = sampleIDresults["hits"]["hits"]
+    .map(record => record["_source"])
+    .reduce(
+      (sampleMap, record) => ({
+        ...sampleMap,
+        [record["dashboard_id"]]: record[label["label"]][0]
+      }),
+      {}
+    );
+
+  const sampleCounts = sampleIDresults["aggregations"][
+    `agg_terms_${label["label"]}`
+  ]["buckets"]
+    .map(bucket => bucket["key"])
+    .sort();
+
+  const cellIDs = !highlightedGroup
+    ? []
+    : await getCellIDs(dashboardID, highlightedGroup);
+
+  const query = !highlightedGroup
+    ? bodybuilder()
+        .size(0)
+        .filter("term", "dashboard_id", dashboardID)
+        .aggregation("terms", "sample_id", { size: 1000 })
+        .build()
+    : bodybuilder()
+        .size(0)
+        .filter("term", "dashboard_id", dashboardID)
+        .filter("terms", "cell_id", cellIDs)
+        .aggregation("terms", "sample_id", { size: 1000 })
+        .build();
+
+  const results = await client.search({
+    index: "dashboard_cells",
+    body: query
+  });
+
+  const counts = results["aggregations"]["agg_terms_sample_id"][
+    "buckets"
+  ].reduce((countsMap, bucket) => {
+    const sampleKey = sampleIDMap[bucket["key"]];
+
+    return {
+      ...countsMap,
+      [sampleKey]: countsMap.hasOwnProperty(sampleKey)
+        ? countsMap[sampleKey] + bucket["doc_count"]
+        : bucket["doc_count"]
+    };
+  }, {});
+
+  return sampleCounts.map(record => ({
+    ...label,
+    value: record,
+    count: counts.hasOwnProperty(record) ? counts[record] : 0
+  }));
+}
+
+async function getCellNumericalCounts(dashboardID, label, highlightedGroup) {
+  const cellIDs = !highlightedGroup
+    ? []
+    : await getCellIDs(dashboardID, highlightedGroup);
+
+  const query = !highlightedGroup
+    ? bodybuilder()
+        .size(0)
+        .filter("term", "dashboard_id", dashboardID)
+        .aggregation("histogram", label["label"], {
+          interval: 0.1,
+          extended_bounds: { min: 0, max: 1 }
+        })
+        .build()
+    : bodybuilder()
+        .size(0)
+        .filter("term", "dashboard_id", dashboardID)
+        .filter("terms", "cell_id", cellIDs)
+        .aggregation("histogram", label["label"], {
+          interval: 0.1,
+          extended_bounds: { min: 0, max: 1 }
+        })
+        .build();
+  const results = await client.search({
+    index: "dashboard_cells",
+    body: query
+  });
+
+  return results["aggregations"][`agg_histogram_${label["label"]}`][
+    "buckets"
+  ].map(bucket => ({
+    ...label,
+    value: bucket["key"],
+    count: bucket["doc_count"]
+  }));
+}
+
+async function getGeneExpressionCounts(dashboardID, label, highlightedGroup) {
+  const minMaxQuery = bodybuilder()
+    .size(0)
+    .filter("term", "gene", label["label"])
+    .aggregation("stats", "log_count")
+    .build();
+
+  const minMaxResults = await client.search({
+    index: `dashboard_genes_${dashboardID.toLowerCase()}`,
+    body: minMaxQuery
+  });
+
+  const min = minMaxResults["aggregations"]["agg_stats_log_count"]["min"];
+  const max = minMaxResults["aggregations"]["agg_stats_log_count"]["max"];
+  const binSize = (max - min) / 10;
+
+  const cellIDs = !highlightedGroup
+    ? []
+    : await getCellIDs(dashboardID, highlightedGroup);
+
+  const query = !highlightedGroup
+    ? bodybuilder()
+        .size(0)
+        .filter("term", "gene", label["label"])
+        .aggregation("histogram", "log_count", {
+          interval: binSize,
+          extended_bounds: { min, max }
+        })
+        .build()
+    : bodybuilder()
+        .size(0)
+        .filter("terms", "cell_id", cellIDs)
+        .filter("term", "gene", label["label"])
+        .aggregation("histogram", "log_count", {
+          interval: binSize,
+          extended_bounds: { min, max }
+        })
+        .build();
+  const results = await client.search({
+    index: `dashboard_genes_${dashboardID.toLowerCase()}`,
+    body: query
+  });
+
+  return results["aggregations"][`agg_histogram_log_count`]["buckets"].map(
+    bucket => ({
+      ...label,
+      value: bucket["key"],
+      count: bucket["doc_count"]
+    })
+  );
+}
