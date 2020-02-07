@@ -723,7 +723,13 @@ async function getCellIDs(dashboardID, highlightedGroup) {
           })
           .build()
       : baseQuery
-          .filter("term", highlightedGroup["label"], highlightedGroup["value"])
+          .filter(
+            "term",
+            highlightedGroup["label"] === "celltype"
+              ? "cell_type"
+              : highlightedGroup["label"],
+            highlightedGroup["value"]
+          )
           .build();
 
     const results = await client.search({
