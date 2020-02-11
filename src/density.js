@@ -719,7 +719,10 @@ async function getCellIDs(dashboardID, highlightedGroup) {
       ? baseQuery
           .filter("range", highlightedGroup["label"], {
             gte: highlightedGroup["value"].split("-")[0].trim(),
-            lt: highlightedGroup["value"].split("-")[1].trim()
+            lt:
+              highlightedGroup["value"].split("-")[1].trim() === 1
+                ? 1.1
+                : highlightedGroup["value"].split("-")[1].trim()
           })
           .build()
       : baseQuery
@@ -1017,13 +1020,20 @@ async function getCellNumericalCounts(dashboardID, label, highlightedGroup) {
     body: query
   });
 
-  return results["aggregations"][`agg_histogram_${label["label"]}`][
+  const records = results["aggregations"][`agg_histogram_${label["label"]}`][
     "buckets"
   ].map(bucket => ({
     ...label,
     value: bucket["key"],
     count: bucket["doc_count"]
   }));
+
+  const lastRecord = {
+    ...records[records.length - 2],
+    count: records[records.length - 2] + records[records.length - 1]
+  };
+
+  return [...records.slice(0, records.length - 2), lastRecord];
 }
 
 async function getGeneExpressionCounts(dashboardID, label, highlightedGroup) {
@@ -1069,11 +1079,18 @@ async function getGeneExpressionCounts(dashboardID, label, highlightedGroup) {
     body: query
   });
 
-  return results["aggregations"][`agg_histogram_log_count`]["buckets"].map(
-    bucket => ({
-      ...label,
-      value: bucket["key"],
-      count: bucket["doc_count"]
-    })
-  );
+  const records = results["aggregations"][`agg_histogram_log_count`][
+    "buckets"
+  ].map(bucket => ({
+    ...label,
+    value: bucket["key"],
+    count: bucket["doc_count"]
+  }));
+
+  const lastRecord = {
+    ...records[records.length - 2],
+    count: records[records.length - 2] + records[records.length - 1]
+  };
+
+  return [...records.slice(0, records.length - 2), lastRecord];
 }
