@@ -29,54 +29,9 @@ export const resolvers = {
       const xBinSize = (agg_stats_x["max"] - agg_stats_x["min"]) / 100;
       const yBinSize = (agg_stats_y["max"] - agg_stats_y["min"]) / 100;
 
-      const getDataBins = (results, getValue) =>
-        results["aggregations"]["agg_histogram_x"]["buckets"].reduce(
-          (xMap, xBucket) => ({
-            ...xMap,
-            [Math.round(xBucket["key"] / xBinSize)]: processProbYBucket(
-              xBucket["agg_histogram_y"]["buckets"],
-              getValue
-            )
-          }),
-          {}
-        );
-
-      const processProbYBucket = (yBuckets, getValue) =>
-        yBuckets.reduce(
-          (yMap, bucket) => ({
-            ...yMap,
-            [Math.round(bucket["key"] / yBinSize)]: getValue(bucket)
-          }),
-          {}
-        );
-      const query = bodybuilder()
-        .size(0)
-        .filter("terms", "gene", genes)
-        .aggregation(
-          "histogram",
-          "x",
-          { interval: xBinSize, min_doc_count: 1 },
-          a =>
-            a.aggregation(
-              "histogram",
-              "y",
-              { interval: yBinSize, min_doc_count: 1 },
-              a => a.aggregation("stats", "log_count")
-            )
-        )
-        .build();
-
-      const results = await client.search({
-        index: `dashboard_genes_${dashboardID.toLowerCase()}`,
-        body: query
-      });
-
       const allBins = await getAllBins(dashboardID, xBinSize, yBinSize);
 
-      const dataBins = getDataBins(
-        results,
-        yBucket => yBucket["agg_stats_log_count"]["sum"]
-      );
+      const dataBins = await getData(dashboardID, xBinSize, yBinSize, genes);
       return allBins.map(record => ({
         ...record,
         label: "",
@@ -139,3 +94,57 @@ const processXBuckets = (xBucket, xBinSize, yBinSize, label, getValue) =>
       label
     };
   });
+
+async function getData(dashboardID, xBinSize, yBinSize, genes) {
+  if (genes.length === 0) {
+    return {};
+  }
+
+  const getDataBins = (results, getValue) =>
+    results["aggregations"]["agg_histogram_x"]["buckets"].reduce(
+      (xMap, xBucket) => ({
+        ...xMap,
+        [Math.round(xBucket["key"] / xBinSize)]: processProbYBucket(
+          xBucket["agg_histogram_y"]["buckets"],
+          getValue
+        )
+      }),
+      {}
+    );
+
+  const processProbYBucket = (yBuckets, getValue) =>
+    yBuckets.reduce(
+      (yMap, bucket) => ({
+        ...yMap,
+        [Math.round(bucket["key"] / yBinSize)]: getValue(bucket)
+      }),
+      {}
+    );
+  const query = bodybuilder()
+    .size(0)
+    .filter("terms", "gene", genes)
+    .aggregation(
+      "histogram",
+      "x",
+      { interval: xBinSize, min_doc_count: 1 },
+      a =>
+        a.aggregation(
+          "histogram",
+          "y",
+          { interval: yBinSize, min_doc_count: 1 },
+          a => a.aggregation("stats", "log_count")
+        )
+    )
+    .build();
+
+  const results = await client.search({
+    index: `dashboard_genes_${dashboardID.toLowerCase()}`,
+    body: query
+  });
+
+  const dataBins = getDataBins(
+    results,
+    yBucket => yBucket["agg_stats_log_count"]["sum"]
+  );
+  return dataBins;
+}
