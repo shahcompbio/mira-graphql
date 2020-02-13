@@ -6,11 +6,33 @@ import client from "./api/elasticsearch.js";
 export const schema = gql`
   extend type Query {
     cumulativeGenes(dashboardID: String!, genes: [String!]!): [DensityBin!]!
+    genesValid(dashboardID: String!, genes: [String!]!): [Boolean!]!
   }
 `;
 
 export const resolvers = {
+
   Query: {
+    async genesValid(_, { dashboardID, genes }) {
+      const geneListQuery = bodybuilder()
+        .size(0)
+        .aggregation("terms", "gene",{
+          size: 50000
+        })
+        .build();
+    
+    const geneData = await client.search({
+      index: "dashboard_genes" + "_" + dashboardID.toLowerCase(),
+      body: geneListQuery
+    });
+
+    var representedGenes = geneData.aggregations.agg_terms_gene.buckets
+    representedGenes = representedGenes.map(gene_set => gene_set.key)
+
+    var output = {}
+    return genes.map(gene => representedGenes.includes(gene))
+  },
+
     async cumulativeGenes(_, { dashboardID, genes }) {
       const sizeQuery = bodybuilder()
         .size(0)
