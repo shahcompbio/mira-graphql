@@ -1084,7 +1084,9 @@ async function getGeneExpressionCounts(dashboardID, label, highlightedGroup) {
 
   const lastRecord = {
     ...records[records.length - 2],
-    count: records[records.length - 2] + records[records.length - 1]
+    count:
+      records[records.length - 2]["count"] +
+      records[records.length - 1]["count"]
   };
 
   return [...records.slice(0, records.length - 2), lastRecord];
