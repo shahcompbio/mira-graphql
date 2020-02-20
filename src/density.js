@@ -330,12 +330,9 @@ async function getSampleBins(
   xBinSize,
   yBinSize
 ) {
-  const [patientID, sortID] = dashboardID.split("_");
-
   const sampleIDquery = bodybuilder()
     .size(1000)
-    .filter("term", "patient_id", patientID)
-    .filter("term", "sort", sortID)
+    .filter("term", "patient_id", dashboardID)
     .filter("term", "type", "sample")
     .build();
 
@@ -588,12 +585,14 @@ async function getCellNumericalBins(
   if (!highlightedGroup) {
     const query = getBaseDensityQuery(dashboardID, xBinSize, yBinSize, a =>
       a.aggregation("percentiles", label["label"])
-    ).build();
-
+    )
+      .size(500)
+      .build();
     const results = await client.search({
       index: "dashboard_cells",
       body: query
     });
+    console.log(results.hits.hits.map(record => record["_source"]));
     return results["aggregations"]["agg_histogram_x"]["buckets"].reduce(
       (records, xBucket) => [
         ...records,
@@ -744,8 +743,7 @@ async function getCellIDs(dashboardID, highlightedGroup) {
   } else if (highlightedGroup["type"] === "SAMPLE") {
     const sampleIDQuery = bodybuilder()
       .size(1000)
-      .filter("term", "patient_id", dashboardID.split("_")[0])
-      .filter("term", "sort", dashboardID.split("_")[1])
+      .filter("term", "patient_id", dashboardID)
       .filter("term", highlightedGroup["label"], highlightedGroup["value"])
       .filter("term", "type", "sample")
       .build();
@@ -919,12 +917,9 @@ async function getCelltypeCounts(dashboardID, label, highlightedGroup) {
 }
 
 async function getSampleCounts(dashboardID, label, highlightedGroup) {
-  const [patientID, sortID] = dashboardID.split("_");
-
   const sampleIDquery = bodybuilder()
     .size(1000)
-    .filter("term", "patient_id", patientID)
-    .filter("term", "sort", sortID)
+    .filter("term", "patient_id", dashboardID)
     .filter("term", "type", "sample")
     .aggregation("terms", label["label"], { size: 1000 })
     .build();
