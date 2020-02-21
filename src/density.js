@@ -130,7 +130,7 @@ export const resolvers = {
 
       return [
         ...CELL_CATEGORICAL,
-        ...(dashboardType === "SAMPLE" ? [] : SAMPLE_CATEGORICAL),
+        ...(dashboardType.toLowerCase() === "sample" ? [] : SAMPLE_CATEGORICAL),
         ...CELL_NUMERICAL,
         ...GENE_NUMERICAL
       ];
