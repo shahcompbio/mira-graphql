@@ -8,7 +8,8 @@ import { GraphQLScalarType, Kind } from "graphql";
 import * as dashboard from "./dashboard";
 import * as stats from "./stats";
 import * as rho from "./rho";
-import * as cells from "./cells";
+
+import * as density from "./density";
 
 import { merge } from "lodash";
 
@@ -58,22 +59,14 @@ const server = new ApolloServer({
     dashboard.schema,
     stats.schema,
     rho.schema,
-    cells.schema
-    // cells.schema,
-    // patients.schema,
-    // colorLabels.schema,
-    // celltypes.schema
+    density.schema
   ],
   resolvers: merge(
     baseResolvers,
     dashboard.resolvers,
     stats.resolvers,
     rho.resolvers,
-    cells.resolvers
-    // cells.resolvers,
-    // patients.resolvers,
-    // colorLabels.resolvers,
-    // celltypes.resolvers
+    density.resolvers
   )
 });
 
