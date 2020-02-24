@@ -130,7 +130,7 @@ export const resolvers = {
 
       return [
         ...CELL_CATEGORICAL,
-        ...(dashboardType === "SAMPLE" ? [] : SAMPLE_CATEGORICAL),
+        ...(dashboardType.toLowerCase() === "sample" ? [] : SAMPLE_CATEGORICAL),
         ...CELL_NUMERICAL,
         ...GENE_NUMERICAL
       ];
@@ -330,12 +330,9 @@ async function getSampleBins(
   xBinSize,
   yBinSize
 ) {
-  const [patientID, sortID] = dashboardID.split("_");
-
   const sampleIDquery = bodybuilder()
     .size(1000)
-    .filter("term", "patient_id", patientID)
-    .filter("term", "sort", sortID)
+    .filter("term", "patient_id", dashboardID)
     .filter("term", "type", "sample")
     .build();
 
@@ -588,8 +585,9 @@ async function getCellNumericalBins(
   if (!highlightedGroup) {
     const query = getBaseDensityQuery(dashboardID, xBinSize, yBinSize, a =>
       a.aggregation("percentiles", label["label"])
-    ).build();
-
+    )
+      .size(500)
+      .build();
     const results = await client.search({
       index: "dashboard_cells",
       body: query
@@ -615,7 +613,10 @@ async function getCellNumericalBins(
     )
       .filter("range", highlightedGroup["label"], {
         gte: highlightedGroup["value"].split("-")[0].trim(),
-        lt: highlightedGroup["value"].split("-")[1].trim()
+        lt:
+          parseFloat(highlightedGroup["value"].split("-")[1].trim()) === 1
+            ? "1.1"
+            : highlightedGroup["value"].split("-")[1].trim()
       })
       .build();
 
@@ -720,8 +721,8 @@ async function getCellIDs(dashboardID, highlightedGroup) {
           .filter("range", highlightedGroup["label"], {
             gte: highlightedGroup["value"].split("-")[0].trim(),
             lt:
-              highlightedGroup["value"].split("-")[1].trim() === 1
-                ? 1.1
+              parseFloat(highlightedGroup["value"].split("-")[1].trim()) === 1
+                ? "1.1"
                 : highlightedGroup["value"].split("-")[1].trim()
           })
           .build()
@@ -744,8 +745,7 @@ async function getCellIDs(dashboardID, highlightedGroup) {
   } else if (highlightedGroup["type"] === "SAMPLE") {
     const sampleIDQuery = bodybuilder()
       .size(1000)
-      .filter("term", "patient_id", dashboardID.split("_")[0])
-      .filter("term", "sort", dashboardID.split("_")[1])
+      .filter("term", "patient_id", dashboardID)
       .filter("term", highlightedGroup["label"], highlightedGroup["value"])
       .filter("term", "type", "sample")
       .build();
@@ -919,12 +919,9 @@ async function getCelltypeCounts(dashboardID, label, highlightedGroup) {
 }
 
 async function getSampleCounts(dashboardID, label, highlightedGroup) {
-  const [patientID, sortID] = dashboardID.split("_");
-
   const sampleIDquery = bodybuilder()
     .size(1000)
-    .filter("term", "patient_id", patientID)
-    .filter("term", "sort", sortID)
+    .filter("term", "patient_id", dashboardID)
     .filter("term", "type", "sample")
     .aggregation("terms", label["label"], { size: 1000 })
     .build();
@@ -1030,7 +1027,9 @@ async function getCellNumericalCounts(dashboardID, label, highlightedGroup) {
 
   const lastRecord = {
     ...records[records.length - 2],
-    count: records[records.length - 2] + records[records.length - 1]
+    count:
+      records[records.length - 2]["count"] +
+      records[records.length - 1]["count"]
   };
 
   return [...records.slice(0, records.length - 2), lastRecord];
@@ -1089,7 +1088,9 @@ async function getGeneExpressionCounts(dashboardID, label, highlightedGroup) {
 
   const lastRecord = {
     ...records[records.length - 2],
-    count: records[records.length - 2] + records[records.length - 1]
+    count:
+      records[records.length - 2]["count"] +
+      records[records.length - 1]["count"]
   };
 
   return [...records.slice(0, records.length - 2), lastRecord];
