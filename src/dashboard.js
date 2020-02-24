@@ -179,6 +179,7 @@ export const resolvers = {
           index: "dashboard_cells",
           body: query
         });
+        console.log(results)
         return results["aggregations"]["agg_terms_cell_type"]["buckets"] //results["hits"]["hits"].map(record => record["_source"]);
       }
     },
