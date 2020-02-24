@@ -592,7 +592,6 @@ async function getCellNumericalBins(
       index: "dashboard_cells",
       body: query
     });
-    console.log(results.hits.hits.map(record => record["_source"]));
     return results["aggregations"]["agg_histogram_x"]["buckets"].reduce(
       (records, xBucket) => [
         ...records,
@@ -1025,7 +1024,9 @@ async function getCellNumericalCounts(dashboardID, label, highlightedGroup) {
 
   const lastRecord = {
     ...records[records.length - 2],
-    count: records[records.length - 2] + records[records.length - 1]
+    count:
+      records[records.length - 2]["count"] +
+      records[records.length - 1]["count"]
   };
 
   return [...records.slice(0, records.length - 2), lastRecord];
