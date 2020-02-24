@@ -613,7 +613,10 @@ async function getCellNumericalBins(
     )
       .filter("range", highlightedGroup["label"], {
         gte: highlightedGroup["value"].split("-")[0].trim(),
-        lt: highlightedGroup["value"].split("-")[1].trim()
+        lt:
+          parseFloat(highlightedGroup["value"].split("-")[1].trim()) === 1
+            ? "1.1"
+            : highlightedGroup["value"].split("-")[1].trim()
       })
       .build();
 
@@ -718,8 +721,8 @@ async function getCellIDs(dashboardID, highlightedGroup) {
           .filter("range", highlightedGroup["label"], {
             gte: highlightedGroup["value"].split("-")[0].trim(),
             lt:
-              highlightedGroup["value"].split("-")[1].trim() === 1
-                ? 1.1
+              parseFloat(highlightedGroup["value"].split("-")[1].trim()) === 1
+                ? "1.1"
                 : highlightedGroup["value"].split("-")[1].trim()
           })
           .build()
