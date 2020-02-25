@@ -6,30 +6,47 @@ import client from "./api/elasticsearch.js";
 export const schema = gql`
   extend type Query {
     cumulativeGenes(dashboardID: String!, genes: [String!]!): [DensityBin!]!
-    genesValid(dashboardID: String!, genes: [String!]!): [Boolean!]!
+    geneStats(dashboardID: String!, genes: [String!]!): [GeneStat!]!
+  }
+
+  type GeneStat {
+    name: String!
+    stat: Float
   }
 `;
 
 export const resolvers = {
   Query: {
-    async genesValid(_, { dashboardID, genes }) {
-      const geneListQuery = bodybuilder()
+    async geneStats(_, { dashboardID, genes }) {
+      if (genes.length === 0) {
+        return [];
+      }
+      const query = bodybuilder()
         .size(0)
-        .aggregation("terms", "gene", {
-          size: 50000
-        })
+        .filter("terms", "gene", genes)
+        .aggregation("terms", "gene", { size: 10000 }, a =>
+          a.agg("stats", "log_count")
+        )
         .build();
 
-      const geneData = await client.search({
-        index: "dashboard_genes" + "_" + dashboardID.toLowerCase(),
-        body: geneListQuery
+      const results = await client.search({
+        index: `dashboard_genes_${dashboardID.toLowerCase()}`,
+        body: query
       });
 
-      var representedGenes = geneData.aggregations.agg_terms_gene.buckets;
-      representedGenes = representedGenes.map(gene_set => gene_set.key);
-
-      var output = {};
-      return genes.map(gene => representedGenes.includes(gene));
+      const geneMap = results["aggregations"]["agg_terms_gene"][
+        "buckets"
+      ].reduce(
+        (mapsf, bucket) => ({
+          ...mapsf,
+          [bucket["key"]]: bucket["agg_stats_log_count"]["avg"]
+        }),
+        {}
+      );
+      return genes.map(gene => ({
+        name: gene,
+        stat: geneMap.hasOwnProperty(gene) ? geneMap[gene] : null
+      }));
     },
 
     async cumulativeGenes(_, { dashboardID, genes }) {
