@@ -6,27 +6,25 @@ import client from "./api/elasticsearch.js";
 export const schema = gql`
   extend type Query {
     cumulativeGenes(dashboardID: String!, genes: [String!]!): [DensityBin!]!
-    geneStats(dashboardID: String!, genes: [String!]!): [GeneStat!]!
+    verifyGenes(dashboardID: String!, genes: [String!]!): GeneList!
   }
 
-  type GeneStat {
-    name: String!
-    stat: Float
+  type GeneList {
+    valid: [String!]!
+    invalid: [String!]!
   }
 `;
 
 export const resolvers = {
   Query: {
-    async geneStats(_, { dashboardID, genes }) {
+    async verifyGenes(_, { dashboardID, genes }) {
       if (genes.length === 0) {
-        return [];
+        return { valid: [], invalid: [] };
       }
       const query = bodybuilder()
         .size(0)
         .filter("terms", "gene", genes)
-        .aggregation("terms", "gene", { size: 10000 }, a =>
-          a.agg("stats", "log_count")
-        )
+        .agg("terms", "gene", { size: 10000 })
         .build();
 
       const results = await client.search({
@@ -34,19 +32,14 @@ export const resolvers = {
         body: query
       });
 
-      const geneMap = results["aggregations"]["agg_terms_gene"][
+      const validGenes = results["aggregations"]["agg_terms_gene"][
         "buckets"
-      ].reduce(
-        (mapsf, bucket) => ({
-          ...mapsf,
-          [bucket["key"]]: bucket["agg_stats_log_count"]["avg"]
-        }),
-        {}
-      );
-      return genes.map(gene => ({
-        name: gene,
-        stat: geneMap.hasOwnProperty(gene) ? geneMap[gene] : null
-      }));
+      ].map(bucket => bucket["key"]);
+
+      return {
+        valid: genes.filter(gene => validGenes.indexOf(gene) !== -1),
+        invalid: genes.filter(gene => validGenes.indexOf(gene) === -1)
+      };
     },
 
     async cumulativeGenes(_, { dashboardID, genes }) {
