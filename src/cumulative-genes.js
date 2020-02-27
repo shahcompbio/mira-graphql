@@ -5,7 +5,11 @@ import client from "./api/elasticsearch.js";
 
 export const schema = gql`
   extend type Query {
-    cumulativeGenes(dashboardID: String!, genes: [String!]!): [DensityBin!]!
+    cumulativeGenes(
+      dashboardID: String!
+      genes: [String!]!
+      highlightedGroup: AttributeInput
+    ): [DensityBin!]!
     verifyGenes(dashboardID: String!, genes: [String!]!): GeneList!
   }
 
@@ -42,7 +46,7 @@ export const resolvers = {
       };
     },
 
-    async cumulativeGenes(_, { dashboardID, genes }) {
+    async cumulativeGenes(_, { dashboardID, genes, highlightedGroup }) {
       const sizeQuery = bodybuilder()
         .size(0)
         .filter("term", "dashboard_id", dashboardID)
@@ -62,7 +66,13 @@ export const resolvers = {
 
       const allBins = await getAllBins(dashboardID, xBinSize, yBinSize);
 
-      const dataBins = await getData(dashboardID, xBinSize, yBinSize, genes);
+      const dataBins = await getData(
+        dashboardID,
+        xBinSize,
+        yBinSize,
+        genes,
+        highlightedGroup
+      );
       return allBins.map(record => ({
         ...record,
         label: "",
@@ -70,6 +80,8 @@ export const resolvers = {
           dataBins.hasOwnProperty(record["x"]) &&
           dataBins[record["x"]].hasOwnProperty(record["y"])
             ? dataBins[record["x"]][record["y"]]
+            : highlightedGroup
+            ? ""
             : 0
       }));
     }
@@ -126,11 +138,16 @@ const processXBuckets = (xBucket, xBinSize, yBinSize, label, getValue) =>
     };
   });
 
-async function getData(dashboardID, xBinSize, yBinSize, genes) {
+async function getData(
+  dashboardID,
+  xBinSize,
+  yBinSize,
+  genes,
+  highlightedGroup
+) {
   if (genes.length === 0) {
     return {};
   }
-
   const getDataBins = (results, getValue) =>
     results["aggregations"]["agg_histogram_x"]["buckets"].reduce(
       (xMap, xBucket) => ({
@@ -151,7 +168,35 @@ async function getData(dashboardID, xBinSize, yBinSize, genes) {
       }),
       {}
     );
-  const query = bodybuilder()
+
+  const query = await getQuery(
+    dashboardID,
+    genes,
+    xBinSize,
+    yBinSize,
+    highlightedGroup
+  );
+
+  const results = await client.search({
+    index: `dashboard_genes_${dashboardID.toLowerCase()}`,
+    body: query
+  });
+
+  const dataBins = getDataBins(
+    results,
+    yBucket => yBucket["agg_stats_log_count"]["sum"]
+  );
+  return dataBins;
+}
+
+async function getQuery(
+  dashboardID,
+  genes,
+  xBinSize,
+  yBinSize,
+  highlightedGroup
+) {
+  const baseQuery = bodybuilder()
     .size(0)
     .filter("terms", "gene", genes)
     .aggregation(
@@ -165,17 +210,98 @@ async function getData(dashboardID, xBinSize, yBinSize, genes) {
           { interval: yBinSize, min_doc_count: 1 },
           a => a.aggregation("stats", "log_count")
         )
-    )
-    .build();
+    );
 
-  const results = await client.search({
-    index: `dashboard_genes_${dashboardID.toLowerCase()}`,
-    body: query
-  });
+  if (!highlightedGroup) {
+    return baseQuery.build();
+  }
 
-  const dataBins = getDataBins(
-    results,
-    yBucket => yBucket["agg_stats_log_count"]["sum"]
-  );
-  return dataBins;
+  const cellIDs = await getCellIDs(dashboardID, highlightedGroup);
+
+  return baseQuery.filter("terms", "cell_id", cellIDs).build();
+}
+
+async function getCellIDs(dashboardID, highlightedGroup) {
+  if (highlightedGroup["type"] === "CELL") {
+    const baseQuery = bodybuilder()
+      .size(50000)
+      .filter("term", "dashboard_id", dashboardID);
+
+    const query = highlightedGroup["isNum"]
+      ? baseQuery
+          .filter("range", highlightedGroup["label"], {
+            gte: highlightedGroup["value"].split("-")[0].trim(),
+            lt:
+              parseFloat(highlightedGroup["value"].split("-")[1].trim()) === 1
+                ? "1.1"
+                : highlightedGroup["value"].split("-")[1].trim()
+          })
+          .build()
+      : baseQuery
+          .filter(
+            "term",
+            highlightedGroup["label"] === "celltype"
+              ? "cell_type"
+              : highlightedGroup["label"],
+            highlightedGroup["value"]
+          )
+          .build();
+
+    const results = await client.search({
+      index: "dashboard_cells",
+      body: query
+    });
+
+    return results["hits"]["hits"].map(record => record["_source"]["cell_id"]);
+  } else if (highlightedGroup["type"] === "SAMPLE") {
+    const sampleIDQuery = bodybuilder()
+      .size(1000)
+      .filter("term", "patient_id", dashboardID)
+      .filter("term", highlightedGroup["label"], highlightedGroup["value"])
+      .filter("term", "type", "sample")
+      .build();
+
+    const sampleIDResults = await client.search({
+      index: "dashboard_entry",
+      body: sampleIDQuery
+    });
+
+    const sampleIDs = sampleIDResults["hits"]["hits"].reduce(
+      (sampleIDs, record) => [...sampleIDs, ...record["_source"]["sample_ids"]],
+      []
+    );
+
+    const query = bodybuilder()
+      .size(50000)
+      .filter("term", "dashboard_id", dashboardID)
+      .filter("terms", "sample_id", sampleIDs)
+      .build();
+
+    const results = await client.search({
+      index: "dashboard_cells",
+      body: query
+    });
+
+    return results["hits"]["hits"].map(record => record["_source"]["cell_id"]);
+  } else {
+    // is "GENE"
+    const query = bodybuilder()
+      .size(0)
+      .filter("term", "gene", highlightedGroup["label"])
+      .filter("range", "log_count", {
+        gte: highlightedGroup["value"].split("-")[0].trim(),
+        lt: highlightedGroup["value"].split("-")[1].trim()
+      })
+      .aggregation("terms", "cell_id", { size: 50000 })
+      .build();
+
+    const results = await client.search({
+      index: `dashboard_genes_${dashboardID.toLowerCase()}`,
+      body: query
+    });
+
+    return results["aggregations"]["agg_terms_cell_id"]["buckets"].map(
+      bucket => bucket["key"]
+    );
+  }
 }

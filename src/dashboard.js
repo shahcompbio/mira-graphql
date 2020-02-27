@@ -8,6 +8,12 @@ export const schema = gql`
   extend type Query {
     dashboardTypes: [String!]!
     dashboardClusters(type: String!, filters: [filterInput]!): DashboardCluster!
+    dashboards: [Dashboard2!]!
+  }
+
+  type Dashboard2 {
+    type: String!
+    id: String!
   }
 
   type DashboardCluster {
@@ -50,6 +56,23 @@ export const schema = gql`
 
 export const resolvers = {
   Query: {
+    async dashboards() {
+      const query = bodybuilder()
+        .size(50000)
+        .sort("dashboard_id")
+        .build();
+
+      const results = await client.search({
+        index: "dashboard_entry",
+        body: query
+      });
+
+      return results["hits"]["hits"].map(record => ({
+        type: record["_source"]["type"],
+        id: record["_source"]["dashboard_id"]
+      }));
+    },
+
     async dashboardTypes() {
       const query = bodybuilder()
         .size(0)
