@@ -11,6 +11,9 @@ import * as rho from "./rho";
 
 import * as density from "./density";
 
+import * as cumulativeGenes from "./cumulative-genes";
+import * as correlation from "./correlation";
+
 import { merge } from "lodash";
 
 const baseSchema = gql`
@@ -59,14 +62,18 @@ const server = new ApolloServer({
     dashboard.schema,
     stats.schema,
     rho.schema,
-    density.schema
+    density.schema,
+    cumulativeGenes.schema,
+    correlation.schema
   ],
   resolvers: merge(
     baseResolvers,
     dashboard.resolvers,
     stats.resolvers,
     rho.resolvers,
-    density.resolvers
+    density.resolvers,
+    cumulativeGenes.resolvers,
+    correlation.resolvers
   )
 });
 
