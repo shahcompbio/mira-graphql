@@ -407,7 +407,7 @@ export async function getCellIDs(dashboardID, highlightedGroup) {
   }
 }
 
-async function getBinSizes(dashboardID) {
+export async function getBinSizes(dashboardID) {
   const sizeQuery = bodybuilder()
     .size(0)
     .filter("term", "dashboard_id", dashboardID)
@@ -428,7 +428,12 @@ async function getBinSizes(dashboardID) {
   return { xBinSize, yBinSize };
 }
 
-const getBaseDensityQuery = (dashboardID, xBinSize, yBinSize, labelAgg) =>
+export const getBaseDensityQuery = (
+  dashboardID,
+  xBinSize,
+  yBinSize,
+  labelAgg
+) =>
   bodybuilder()
     .size(0)
     .filter("term", "dashboard_id", dashboardID)
@@ -445,7 +450,7 @@ const getBaseDensityQuery = (dashboardID, xBinSize, yBinSize, labelAgg) =>
         )
     );
 
-async function getAllBins(dashboardID, xBinSize, yBinSize) {
+export async function getAllBins(dashboardID, xBinSize, yBinSize) {
   const query = getBaseDensityQuery(dashboardID, xBinSize, yBinSize, a =>
     a.aggregation("terms", "cell_type", { size: 1000 })
   );
@@ -479,7 +484,7 @@ const processXBuckets = (xBucket, xBinSize, yBinSize, label, getValue) =>
     };
   });
 
-const getDataMap = (results, xBinSize, yBinSize, getValue) => {
+export const getDataMap = (results, xBinSize, yBinSize, getValue) => {
   const processYBuckets = yBuckets =>
     yBuckets.reduce(
       (yMap, bucket) => ({
@@ -500,7 +505,7 @@ const getDataMap = (results, xBinSize, yBinSize, getValue) => {
   );
 };
 
-async function getRecords(
+export async function getRecords(
   dataMap,
   dashboardID,
   xBinSize,
