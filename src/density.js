@@ -59,9 +59,7 @@ async function getBinnedData(
         dashboardID,
         xBinSize,
         yBinSize,
-        isSameLabel(label, highlightedGroup)
-          ? highlightedGroup["value"]
-          : label["label"],
+        isSameLabel(label, highlightedGroup) ? "density" : label["label"],
         isSameLabel(label, highlightedGroup)
       );
       return records;
@@ -80,9 +78,7 @@ async function getBinnedData(
         dashboardID,
         xBinSize,
         yBinSize,
-        isSameLabel(label, highlightedGroup)
-          ? highlightedGroup["value"]
-          : label["label"],
+        isSameLabel(label, highlightedGroup) ? "density" : label["label"],
         true
       );
       return records;
@@ -103,9 +99,7 @@ async function getBinnedData(
         dashboardID,
         xBinSize,
         yBinSize,
-        isSameLabel(label, highlightedGroup)
-          ? highlightedGroup["value"]
-          : label["label"],
+        isSameLabel(label, highlightedGroup) ? "density" : label["label"],
         isSameLabel(label, highlightedGroup)
       );
       return records;
@@ -124,9 +118,7 @@ async function getBinnedData(
         dashboardID,
         xBinSize,
         yBinSize,
-        isSameLabel(label, highlightedGroup)
-          ? highlightedGroup["value"]
-          : label["label"],
+        isSameLabel(label, highlightedGroup) ? "density" : label["label"],
         isSameLabel(label, highlightedGroup)
       );
       return records;
@@ -146,7 +138,7 @@ async function getCelltypeBins(
     a.aggregation("terms", "cell_type", { size: 1000 })
   );
   if (isSameLabel(label, highlightedGroup)) {
-    query = query.filter("term", "cell_type", highlightedGroup["value"]);
+    query = query.filter("terms", "cell_type", highlightedGroup["value"]);
   } else if (highlightedGroup) {
     const cellIDs = await getCellIDs(dashboardID, highlightedGroup);
     query = query.filter("terms", "cell_id", cellIDs);
@@ -179,7 +171,7 @@ async function getSampleBins(
   );
   if (isSameLabel(label, highlightedGroup)) {
     const sampleIDs = Object.keys(sampleMap).filter(
-      sampleID => sampleMap[sampleID] === highlightedGroup["value"]
+      sampleID => highlightedGroup["value"].indexOf(sampleMap[sampleID]) !== -1
     );
 
     query = query.filter("terms", "sample_id", sampleIDs);
@@ -260,11 +252,11 @@ async function getGeneBins(
   ).filter("term", "gene", label["label"]);
 
   if (isSameLabel(label, highlightedGroup)) {
-    const [minGene, maxGene] = highlightedGroup["value"].split("-");
+    const [minGene, maxGene] = highlightedGroup["value"];
 
     query = query.filter("range", "log_count", {
-      gte: minGene.trim(),
-      lt: maxGene.trim()
+      gte: minGene,
+      lt: maxGene
     });
   } else if (highlightedGroup) {
     const cellIDs = await getCellIDs(dashboardID, highlightedGroup);
@@ -296,11 +288,11 @@ async function getCellNumericalBins(
   );
 
   if (isSameLabel(label, highlightedGroup)) {
-    const [minValue, maxValue] = highlightedGroup["value"].split("-");
+    const [minValue, maxValue] = highlightedGroup["value"];
 
     query = query.filter("range", label["label"], {
-      gte: minValue.trim(),
-      lt: parseFloat(maxValue.trim()) === 1 ? "1.1" : maxValue
+      gte: minValue,
+      lt: maxValue === 1 ? 1.1 : maxValue
     });
   } else if (highlightedGroup) {
     const cellIDs = await getCellIDs(dashboardID, highlightedGroup);
@@ -331,16 +323,16 @@ export async function getCellIDs(dashboardID, highlightedGroup) {
     const query = highlightedGroup["isNum"]
       ? baseQuery
           .filter("range", highlightedGroup["label"], {
-            gte: highlightedGroup["value"].split("-")[0].trim(),
+            gte: highlightedGroup["value"][0],
             lt:
-              parseFloat(highlightedGroup["value"].split("-")[1].trim()) === 1
-                ? "1.1"
-                : highlightedGroup["value"].split("-")[1].trim()
+              highlightedGroup["value"][1] === 1
+                ? 1.1
+                : highlightedGroup["value"][1]
           })
           .build()
       : baseQuery
           .filter(
-            "term",
+            "terms",
             highlightedGroup["label"] === "celltype"
               ? "cell_type"
               : highlightedGroup["label"],
@@ -358,7 +350,7 @@ export async function getCellIDs(dashboardID, highlightedGroup) {
     const sampleIDQuery = bodybuilder()
       .size(1000)
       .filter("term", "patient_id", dashboardID)
-      .filter("term", highlightedGroup["label"], highlightedGroup["value"])
+      .filter("terms", highlightedGroup["label"], highlightedGroup["value"])
       .filter("term", "type", "sample")
       .build();
 
@@ -390,8 +382,8 @@ export async function getCellIDs(dashboardID, highlightedGroup) {
       .size(0)
       .filter("term", "gene", highlightedGroup["label"])
       .filter("range", "log_count", {
-        gte: highlightedGroup["value"].split("-")[0].trim(),
-        lt: highlightedGroup["value"].split("-")[1].trim()
+        gte: highlightedGroup["value"][0],
+        lt: highlightedGroup["value"][1]
       })
       .aggregation("terms", "cell_id", { size: 50000 })
       .build();

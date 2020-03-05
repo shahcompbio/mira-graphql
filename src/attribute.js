@@ -31,7 +31,7 @@ export const schema = gql`
     isNum: Boolean!
     type: String!
     label: String!
-    value: StringOrNum
+    value: [StringOrNum!]
   }
 `;
 
