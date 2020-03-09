@@ -193,7 +193,7 @@ async function getSampleBins(
   return getDataMap(results, xBinSize, yBinSize, getValue);
 }
 
-async function getSampleMap(dashboardID, label) {
+export async function getSampleMap(dashboardID, label) {
   const sampleIDquery = bodybuilder()
     .size(1000)
     .filter("term", "patient_id", dashboardID)
