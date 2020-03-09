@@ -29,7 +29,10 @@ export const resolvers = {
       const xData = await getData(dashboardID, xLabel);
       const yData = await getData(dashboardID, yLabel);
 
-      return cellIDs.map(cellID => ({ x: xData[cellID], y: yData[cellID] }));
+      return cellIDs.map(cellID => ({
+        x: xData.hasOwnProperty(cellID) ? xData[cellID] : 0,
+        y: yData.hasOwnProperty(cellID) ? yData[cellID] : 0
+      }));
     }
   }
 };
@@ -127,7 +130,7 @@ async function getCelltypeValue(dashboardID, label) {
 }
 
 async function getSampleValue(dashboardID, label) {
-  const sampleMap = getSampleMap(dashboardID, label["label"]);
+  const sampleMap = await getSampleMap(dashboardID, label["label"]);
 
   const query = bodybuilder()
     .size(50000)
