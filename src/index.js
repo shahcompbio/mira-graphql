@@ -10,6 +10,7 @@ import * as stats from "./stats";
 import * as rho from "./rho";
 
 import * as density from "./density";
+import * as attribute from "./attribute";
 
 import * as cumulativeGenes from "./cumulative-genes";
 import * as correlation from "./correlation";
@@ -63,6 +64,7 @@ const server = new ApolloServer({
     stats.schema,
     rho.schema,
     density.schema,
+    attribute.schema,
     cumulativeGenes.schema,
     correlation.schema
   ],
@@ -72,6 +74,7 @@ const server = new ApolloServer({
     stats.resolvers,
     rho.resolvers,
     density.resolvers,
+    attribute.resolvers,
     cumulativeGenes.resolvers,
     correlation.resolvers
   )
