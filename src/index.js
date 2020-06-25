@@ -1,3 +1,5 @@
+require("dotenv").config();
+var nodemon = require("nodemon");
 import "@babel/polyfill";
 
 import { ApolloServer } from "apollo-server-express";
@@ -53,8 +55,8 @@ const baseResolvers = {
         default:
           throw new Error("Value must be either a String or a Number");
       }
-    }
-  })
+    },
+  }),
 };
 
 const server = new ApolloServer({
@@ -66,7 +68,7 @@ const server = new ApolloServer({
     density.schema,
     attribute.schema,
     cumulativeGenes.schema,
-    correlation.schema
+    correlation.schema,
   ],
   resolvers: merge(
     baseResolvers,
@@ -77,7 +79,7 @@ const server = new ApolloServer({
     attribute.resolvers,
     cumulativeGenes.resolvers,
     correlation.resolvers
-  )
+  ),
 });
 
 const express = require("express");
@@ -87,3 +89,14 @@ server.applyMiddleware({ app });
 app.listen({ port: 4000 }, () =>
   console.log(`🚀 Server ready at http://localhost:4000${server.graphqlPath}`)
 );
+
+process
+  .on("exit", (code) => {
+    nodemon.emit("quit");
+    process.exit(code);
+  })
+  .on("SIGINT", () => {
+    console.log("Bye bye!");
+    nodemon.emit("quit");
+    process.exit();
+  });
