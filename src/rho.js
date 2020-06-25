@@ -22,52 +22,51 @@ export const resolvers = {
     async celltypes(_, { type, dashboardID }) {
       const query = bodybuilder()
         .size(0)
-        .agg("terms", "celltype", { size: 50 }, a => {
-          return a.aggregation("terms", "marker", { size: 50 });
+        .agg("terms", "cell_type", { size: 50 }, (a) => {
+          return a.aggregation("terms", "gene", { size: 50 });
         })
         .build();
 
       const results = await client.search({
-        index: "rho_markers",
-        body: query
+        index: "marker_genes",
+        body: query,
       });
-
-      const processedBuckets = results["aggregations"]["agg_terms_celltype"][
+      const processedBuckets = results["aggregations"]["agg_terms_cell_type"][
         "buckets"
       ]
-        .map(bucket => ({
-          celltype: bucket.key,
-          markers: bucket["agg_terms_marker"]["buckets"].map(
-            element => element["key"]
+        .map((bucket) => ({
+          cell_type: bucket.key,
+          markers: bucket["agg_terms_gene"]["buckets"].map(
+            (element) => element["key"]
           ),
-          dashboardID
+          dashboardID,
         }))
-        .sort((a, b) => (a["celltype"] < b["celltype"] ? -1 : 1));
+        .sort((a, b) => (a["cell_type"] < b["cell_type"] ? -1 : 1));
 
       return [
         ...processedBuckets,
-        { celltype: "Other", markers: [], dashboardID }
+        { cell_type: "Other", markers: [], dashboardID },
       ];
-    }
+    },
   },
 
   Rho: {
-    id: root => `rho_${root["celltype"]}`,
-    name: root => root["celltype"],
-    count: async root => {
+    id: (root) => `rho_${root["cell_type"]}`,
+    name: (root) => root["cell_type"],
+    count: async (root) => {
       const query = bodybuilder()
         .size(50000)
         .filter("term", "dashboard_id", root["dashboardID"])
-        .filter("term", "cell_type", root["celltype"])
+        .filter("term", "cell_type", root["cell_type"])
         .build();
 
       const results = await client.search({
-        index: "dashboard_cells",
-        body: query
+        index: `dashboard_cells_${root["dashboardID"].toLowerCase()}`,
+        body: query,
       });
 
       return results["hits"]["total"]["value"];
     },
-    markers: root => root["markers"]
-  }
+    markers: (root) => root["markers"],
+  },
 };

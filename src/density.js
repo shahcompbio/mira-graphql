@@ -172,7 +172,7 @@ async function getCategoricalBins(
 ) {
   // Query fetching
   const baseQuery = getBaseDensityQuery(xBinSize, yBinSize, (a) =>
-    a.aggregation("terms", "cell_type", { size: 1000 })
+    a.aggregation("terms", label["label"], { size: 1000 })
   );
 
   const query = highlightedGroup
@@ -189,7 +189,7 @@ async function getCategoricalBins(
 
   const getValue = isSameLabel(label, highlightedGroup)
     ? (bucket) => bucket["doc_count"]
-    : (bucket) => bucket["agg_terms_cell_type"]["buckets"][0]["key"];
+    : (bucket) => bucket[`agg_terms_${label["label"]}`]["buckets"][0]["key"];
 
   return getDataMap(results, xBinSize, yBinSize, getValue);
 }

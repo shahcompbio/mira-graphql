@@ -110,7 +110,17 @@ async function getCellCategoricalCount(dashboardID, label, highlightedGroup) {
     });
 
   const query = highlightedGroup
-    ? addFilter(baseQuery, highlightedGroup)
+    ? addFilter(
+        bodybuilder()
+          .size(0)
+          .aggregation("terms", label["label"], {
+            size: 1000,
+            order: {
+              _term: "asc",
+            },
+          }),
+        highlightedGroup
+      )
     : baseQuery;
 
   const baseResults = await client.search({
@@ -170,7 +180,23 @@ async function getGeneExpressionCounts(dashboardID, label, highlightedGroup) {
     );
 
   const query = highlightedGroup
-    ? addFilter(baseQuery, highlightedGroup)
+    ? addFilter(
+        bodybuilder()
+          .size(0)
+          .agg("nested", { path: "genes" }, "agg_genes", (a) =>
+            a.agg(
+              "filter",
+              { term: { "genes.gene": label["label"] } },
+              "agg_gene_filter",
+              (a) =>
+                a.agg("histogram", "genes.log_count", {
+                  interval: binSize,
+                  extended_bounds: { min, max },
+                })
+            )
+          ),
+        highlightedGroup
+      )
     : baseQuery;
 
   const results = await client.search({
