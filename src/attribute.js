@@ -52,28 +52,16 @@ export const resolvers = {
         label,
       }));
 
-      const geneQuery = bodybuilder()
-        .size(0)
-        .agg("nested", { path: "genes" }, "agg_genes", (a) =>
-          a.agg("terms", "genes.gene", {
-            size: 50000,
-            order: {
-              _term: "asc",
-            },
-          })
-        )
-        .build();
+      const geneQuery = bodybuilder().size(50000).build();
 
       const geneResults = await client.search({
-        index: `dashboard_cells_${dashboardID.toLowerCase()}`,
+        index: `genes`,
         body: geneQuery,
       });
 
-      const GENE_NUMERICAL = geneResults["aggregations"]["agg_genes"][
-        "agg_terms_genes.gene"
-      ]["buckets"].map((bucket) => ({
+      const GENE_NUMERICAL = geneResults["hits"]["hits"].map((record) => ({
         isNum: true,
-        label: bucket["key"],
+        label: record["gene"],
         type: "GENE",
       }));
 
