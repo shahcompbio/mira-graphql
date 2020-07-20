@@ -30,9 +30,9 @@ export const resolvers = {
         body: query,
       });
 
-      return results["hits"]["hits"].sort((a, b) =>
-        a["cell_type"] < b["cell_type"] ? -1 : 1
-      );
+      return results["hits"]["hits"]
+        .map((record) => record["_source"])
+        .sort((a, b) => (a["cell_type"] < b["cell_type"] ? -1 : 1));
     },
   },
 

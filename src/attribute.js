@@ -61,7 +61,7 @@ export const resolvers = {
 
       const GENE_NUMERICAL = geneResults["hits"]["hits"].map((record) => ({
         isNum: true,
-        label: record["gene"],
+        label: record["_source"]["gene"],
         type: "GENE",
       }));
 
