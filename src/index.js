@@ -89,14 +89,3 @@ server.applyMiddleware({ app });
 app.listen({ port: 4000 }, () =>
   console.log(`🚀 Server ready at http://localhost:4000${server.graphqlPath}`)
 );
-
-process
-  .on("exit", (code) => {
-    nodemon.emit("quit");
-    process.exit(code);
-  })
-  .on("SIGINT", () => {
-    console.log("Bye bye!");
-    nodemon.emit("quit");
-    process.exit();
-  });
