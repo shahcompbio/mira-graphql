@@ -52,7 +52,7 @@ export const resolvers = {
         label,
       }));
 
-      const geneQuery = bodybuilder().size(50000).build();
+      const geneQuery = bodybuilder().size(50000).sort("gene", "asc").build();
 
       const geneResults = await client.search({
         index: `genes`,
