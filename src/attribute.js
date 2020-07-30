@@ -39,14 +39,22 @@ export const resolvers = {
     async attributes(_, { dashboardType, dashboardID }) {
       // PURPOSE: Get all possible coloring values for UMAP
 
-      const CATEGORICAL = [
-        "cell_type",
-        "surgery",
-        "site",
-        "therapy",
-        "sort",
-        "sample_id",
-      ].map((label) => ({
+      const CATEGORICAL_LABELS =
+        dashboardType === "patient"
+          ? ["cell_type", "surgery", "site", "therapy", "sort", "sample_id"]
+          : dashboardID === "cohort_all"
+          ? ["cell_type", "surgery", "site", "therapy", "sort", "sample_id"]
+          : [
+              "cell_type",
+              "cluster_label",
+              "surgery",
+              "site",
+              "therapy",
+              "sort",
+              "sample_id",
+            ];
+
+      const CATEGORICAL = CATEGORICAL_LABELS.map((label) => ({
         isNum: false,
         type: "CELL",
         label,
