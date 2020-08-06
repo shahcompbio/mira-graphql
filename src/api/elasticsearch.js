@@ -1,8 +1,9 @@
+
+require("dotenv").config();
 const elasticsearch = require("elasticsearch");
 
-const HOST = process.env.HOST || "localhost:9200";
 const client = new elasticsearch.Client({
-  host: HOST
+  host: process.env.HOST || process.env.DB_HOST || "localhost:9200"
 });
 
 export default client;
