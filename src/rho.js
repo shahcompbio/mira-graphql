@@ -21,53 +21,25 @@ export const resolvers = {
   Query: {
     async celltypes(_, { type, dashboardID }) {
       const query = bodybuilder()
-        .size(0)
-        .agg("terms", "celltype", { size: 50 }, a => {
-          return a.aggregation("terms", "marker", { size: 50 });
-        })
+        .size(100)
+        .filter("term", "dashboard_id", dashboardID)
         .build();
 
       const results = await client.search({
-        index: "rho_markers",
-        body: query
+        index: "marker_genes",
+        body: query,
       });
 
-      const processedBuckets = results["aggregations"]["agg_terms_celltype"][
-        "buckets"
-      ]
-        .map(bucket => ({
-          celltype: bucket.key,
-          markers: bucket["agg_terms_marker"]["buckets"].map(
-            element => element["key"]
-          ),
-          dashboardID
-        }))
-        .sort((a, b) => (a["celltype"] < b["celltype"] ? -1 : 1));
-
-      return [
-        ...processedBuckets,
-        { celltype: "Other", markers: [], dashboardID }
-      ];
-    }
+      return results["hits"]["hits"]
+        .map((record) => record["_source"])
+        .sort((a, b) => (a["cell_type"] < b["cell_type"] ? -1 : 1));
+    },
   },
 
   Rho: {
-    id: root => `rho_${root["celltype"]}`,
-    name: root => root["celltype"],
-    count: async root => {
-      const query = bodybuilder()
-        .size(50000)
-        .filter("term", "dashboard_id", root["dashboardID"])
-        .filter("term", "cell_type", root["celltype"])
-        .build();
-
-      const results = await client.search({
-        index: "dashboard_cells",
-        body: query
-      });
-
-      return results["hits"]["total"]["value"];
-    },
-    markers: root => root["markers"]
-  }
+    id: (root) => `rho_${root["dashboard_id"]}_${root["cell_type"]}`,
+    name: (root) => root["cell_type"],
+    count: (root) => root["count"],
+    markers: (root) => root["genes"],
+  },
 };

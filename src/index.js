@@ -1,3 +1,5 @@
+require("dotenv").config();
+var nodemon = require("nodemon");
 import "@babel/polyfill";
 
 import { ApolloServer } from "apollo-server-express";
@@ -10,6 +12,7 @@ import * as stats from "./stats";
 import * as rho from "./rho";
 
 import * as density from "./density";
+import * as attribute from "./attribute";
 
 import * as cumulativeGenes from "./cumulative-genes";
 import * as correlation from "./correlation";
@@ -52,8 +55,8 @@ const baseResolvers = {
         default:
           throw new Error("Value must be either a String or a Number");
       }
-    }
-  })
+    },
+  }),
 };
 
 const server = new ApolloServer({
@@ -63,8 +66,9 @@ const server = new ApolloServer({
     stats.schema,
     rho.schema,
     density.schema,
+    attribute.schema,
     cumulativeGenes.schema,
-    correlation.schema
+    correlation.schema,
   ],
   resolvers: merge(
     baseResolvers,
@@ -72,9 +76,10 @@ const server = new ApolloServer({
     stats.resolvers,
     rho.resolvers,
     density.resolvers,
+    attribute.resolvers,
     cumulativeGenes.resolvers,
     correlation.resolvers
-  )
+  ),
 });
 
 const express = require("express");
