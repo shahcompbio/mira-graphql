@@ -138,84 +138,97 @@ async function getCellCategoricalCount(dashboardID, label, highlightedGroup) {
 
 async function getGeneExpressionCounts(dashboardID, label, highlightedGroup) {
   const minMaxQuery = bodybuilder()
-    .size(0)
-    .agg("nested", { path: "genes" }, "agg_genes", (a) =>
-      a.agg(
-        "filter",
-        { term: { "genes.gene": label["label"] } },
-        "agg_gene_filter",
-        (a) => a.agg("stats", "genes.log_count")
-      )
-    )
+    .size(50000)
+    .filter("term", "label", label["label"])
     .build();
 
   const minMaxResults = await client.search({
-    index: `dashboard_cells_${dashboardID.toLowerCase()}`,
+    index: `dashboard_bins_${dashboardID.toLowerCase()}`,
     body: minMaxQuery,
   });
 
-  const { min, max } = minMaxResults["aggregations"]["agg_genes"][
-    "agg_gene_filter"
-  ]["agg_stats_genes.log_count"];
+  const max = Math.max(
+    ...minMaxResults["hits"]["hits"].map((record) => record["_source"]["value"])
+  );
 
-  const binSize = (max - min) / 10;
+  const binSize = max / 10;
 
-  const baseQuery = bodybuilder()
-    .size(0)
-    .agg("nested", { path: "genes" }, "agg_genes", (a) =>
-      a.agg(
-        "filter",
-        { term: { "genes.gene": label["label"] } },
-        "agg_gene_filter",
-        (a) =>
-          a.agg("histogram", "genes.log_count", {
-            interval: binSize,
-            extended_bounds: { min, max },
-          })
-      )
-    );
+  // const baseQuery = bodybuilder()
+  //   .size(0)
+  //   .aggregation(
+  //     "diversified_sampler",
+  //     "cell_id",
+  //     { shard_size: 200000 },
+  //     (a) =>
+  //       a.agg("nested", { path: "genes" }, "agg_genes", (a) =>
+  //         a.agg(
+  //           "filter",
+  //           { term: { "genes.gene": label["label"] } },
+  //           "agg_gene_filter",
+  //           (a) =>
+  //             a.agg("histogram", "genes.log_count", {
+  //               interval: binSize,
+  //               extended_bounds: { min, max },
+  //             })
+  //         )
+  //       )
+  //   );
 
-  const query = highlightedGroup
-    ? addFilter(
-        bodybuilder()
-          .size(0)
-          .agg("nested", { path: "genes" }, "agg_genes", (a) =>
-            a.agg(
-              "filter",
-              { term: { "genes.gene": label["label"] } },
-              "agg_gene_filter",
-              (a) =>
-                a.agg("histogram", "genes.log_count", {
-                  interval: binSize,
-                  extended_bounds: { min, max },
-                })
-            )
-          ),
-        highlightedGroup
-      )
-    : baseQuery;
+  // const query = highlightedGroup
+  //   ? addFilter(
+  //       bodybuilder()
+  //         .size(0)
+  //         .aggregation(
+  //           "diversified_sampler",
+  //           "cell_id",
+  //           { shard_size: 200000 },
+  //           (a) =>
+  //             a.agg("nested", { path: "genes" }, "agg_genes", (a) =>
+  //               a.agg(
+  //                 "filter",
+  //                 { term: { "genes.gene": label["label"] } },
+  //                 "agg_gene_filter",
+  //                 (a) =>
+  //                   a.agg("histogram", "genes.log_count", {
+  //                     interval: binSize,
+  //                     extended_bounds: { min, max },
+  //                   })
+  //               )
+  //             )
+  //         ),
+  //       highlightedGroup
+  //     )
+  //   : baseQuery;
 
-  const results = await client.search({
-    index: `dashboard_cells_${dashboardID.toLowerCase()}`,
-    body: query.build(),
-  });
+  // const results = await client.search({
+  //   index: `dashboard_cells_${dashboardID.toLowerCase()}`,
+  //   body: query.build(),
+  // });
 
-  const records = results["aggregations"]["agg_genes"]["agg_gene_filter"][
-    `agg_histogram_genes.log_count`
-  ]["buckets"].map((bucket) => ({
+  return Array.apply(null, Array(10)).map((n, index) => ({
     ...label,
-    value: bucket["key"],
-    count: bucket["doc_count"],
+    value: index * binSize,
+    count: 0,
   }));
 
-  const lastRecord = {
-    ...records[records.length - 2],
-    count:
-      records[records.length - 2]["count"] +
-      records[records.length - 1]["count"],
-  };
+  // const records = results["aggregations"]["agg_diversified_sampler_cell_id"][
+  //   "agg_genes"
+  // ]["agg_gene_filter"][`agg_histogram_genes.log_count`]["buckets"].map(
+  //   (bucket) => ({
+  //     ...label,
+  //     value: bucket["key"],
+  //     count: bucket["doc_count"],
+  //   })
+  // );
 
-  return [...records.slice(0, records.length - 2), lastRecord];
+  // const lastRecord = {
+  //   ...records[records.length - 2],
+  //   count:
+  //     records[records.length - 2]["count"] +
+  //     records[records.length - 1]["count"],
+  // };
+
+  // return [...records.slice(0, records.length - 2), lastRecord];
 }
 
 const addFilter = (query, filter) => {
