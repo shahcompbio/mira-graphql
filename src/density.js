@@ -24,19 +24,40 @@ export const schema = gql`
 export const resolvers = {
   Query: {
     async density(_, { dashboardID, highlightedGroup, label }) {
-      const { xBinSize, yBinSize } = await getBinSizes(dashboardID);
+      if (highlightedGroup === null) {
+        const data = await getPrebinnedData(dashboardID, label);
 
-      const data = await getBinnedData(
-        dashboardID,
-        label,
-        highlightedGroup,
-        xBinSize,
-        yBinSize
-      );
-      return data;
+        return data;
+      } else {
+        const { xBinSize, yBinSize } = await getBinSizes(dashboardID);
+
+        const data = await getBinnedData(
+          dashboardID,
+          label,
+          highlightedGroup,
+          xBinSize,
+          yBinSize
+        );
+        return data;
+      }
     },
   },
 };
+
+async function getPrebinnedData(dashboardID, label) {
+  const query = bodybuilder()
+    .size(50000)
+    .filter("term", "label", label["label"])
+    .sort([{ x: "asc" }, { y: "asc" }])
+    .build();
+
+  const results = await client.search({
+    index: `dashboard_bins_${dashboardID.toLowerCase()}`,
+    body: query,
+  });
+
+  return results["hits"]["hits"].map((record) => record["_source"]);
+}
 
 async function getBinnedData(
   dashboardID,
@@ -122,7 +143,9 @@ export async function getAllBins(dashboardID, xBinSize, yBinSize) {
     body: query.build(),
   });
 
-  return results["aggregations"]["agg_histogram_x"]["buckets"].reduce(
+  return results["aggregations"]["agg_diversified_sampler_cell_id"][
+    "agg_histogram_x"
+  ]["buckets"].reduce(
     (records, xBucket) => [
       ...records,
       ...processXBuckets(
@@ -141,15 +164,21 @@ export const getBaseDensityQuery = (xBinSize, yBinSize, labelAgg) =>
   bodybuilder()
     .size(0)
     .aggregation(
-      "histogram",
-      "x",
-      { interval: xBinSize, min_doc_count: 1 },
+      "diversified_sampler",
+      "cell_id",
+      { shard_size: 300000 },
       (a) =>
         a.aggregation(
           "histogram",
-          "y",
-          { interval: yBinSize, min_doc_count: 1 },
-          labelAgg
+          "x",
+          { interval: xBinSize, min_doc_count: 1 },
+          (a) =>
+            a.aggregation(
+              "histogram",
+              "y",
+              { interval: yBinSize, min_doc_count: 1 },
+              labelAgg
+            )
         )
     );
 
@@ -268,7 +297,9 @@ export const getDataMap = (results, xBinSize, yBinSize, getValue) => {
       {}
     );
 
-  return results["aggregations"]["agg_histogram_x"]["buckets"].reduce(
+  return results["aggregations"]["agg_diversified_sampler_cell_id"][
+    "agg_histogram_x"
+  ]["buckets"].reduce(
     (dataMap, xBucket) => ({
       ...dataMap,
       [Math.round(xBucket["key"] / xBinSize)]: processYBuckets(
